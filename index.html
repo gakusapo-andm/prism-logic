@@ -1,3 +1,1233 @@
-<!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><title>準備中</title></head>
-<body><p>PRISM LOGIC ─ 準備中です。</p></body></html>
+<!DOCTYPE html>
+<!--
+================================================================================
+  PRISM LOGIC v6 ─ 問診ページ（社員回答画面）   [v21 ─ STEP1/2/3 / UI改訂]
+================================================================================
+  引き継ぎシート v21 §3 の確定仕様に準拠。問診を「意味的な3フェーズ」に再構成。
+
+  [UI改訂・本版] 利用者フィードバックを反映:
+   - カテゴリ（HEART/GUT/CORE/HEAD/MGMT）でページを分けない。STEP1 は全項目を
+     1ページにまとめて表示する。STEP2 は一定数ずつフラットにページ送りする。
+   - STEP1・STEP2 では項目タイトル（「仕事観」等）を表示しない。タイトル語が
+     回答を引っ張る（建前バイアス／アンカリング）のを避けるため、設問文のみ提示。
+     タイトルは STEP3-i の順位づけ時にのみ提示する。
+   - 配色・ロゴは PRISM LOGIC 標準（プリズム三角ロゴ＋虹色グラデーション）に統一。
+     7円スケールは緑〜紫の位置別配色。カテゴリ別の項目着色は行わない。
+
+  STEP1（強度フェーズ）: 全項目の重要度を 1〜7 で聞く。ランプ型 Likert（単極）。
+  STEP2（方向フェーズ）: 全 binary 項目の方向を聞く。砂時計型 Likert（双極）。
+      7点の選択位置を direction = A / neutral / B の3状態に集約して保存。
+  STEP3（順位フェーズ）:
+      (i)  素質の同点タイブレーク: STEP1 の強度が 4項目以上 同点になった群を
+           順位づけ → answers[id].tiebreakRank。3項目以下の同点は発火しない。
+           ※ この画面で初めて項目タイトルを提示する。
+      (ii) 動機の順位づけ: G3 の5ドライバー（Borda）。
+
+  出力 rawResponse: binary={strength,direction[,tiebreakRank]} /
+  intensity={strength,direction:'neutral'[,tiebreakRank]} /
+  ranking(G3)={strength,ranking[,tiebreakRank]}。データ契約は不変。
+  配布用ビルド: ?t=<token> でアクセスし、survey_lookup でトークンを照会、
+  回答完了時に survey_submit で Supabase の responses テーブルへ保存する。
+================================================================================
+-->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRISM LOGIC ─ 問診</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #f4f5f7;       /* 背景：ライトクールグレー（採用案 B） */
+  --bg-white: #ffffff;
+  --bg-soft: #ebedf0;          /* 補助面：中立クールグレー */
+  --border: #e6e8ec;           /* 罫線：中立 */
+  --border-strong: #d6d9df;    /* 強め罫線：中立 */
+  --text-primary: #1d1e22;     /* 文字：中立ダーク（脱・暖色） */
+  --text-secondary: #6c6e75;
+  --text-dim: #a7a9b0;
+
+  --accent: #16a34a;
+  --accent-soft: rgba(22, 163, 74, 0.12);
+  --ok: #16a34a;
+  --btn-dark: #1f2024;         /* 主ボタン：中立ダーク */
+
+  /* PRISM 標準カラー（プリズム＝虹色グラデーション） */
+  --brand-blue: #3b82f6;
+  --brand-green: #22c55e;
+  --brand-red: #ef4444;
+  /* 7円スケールの両端色（緑＝左／紫＝右） */
+  --scale-left: #22c55e;
+  --scale-right: #8b5cf6;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.app { max-width: 760px; margin: 0 auto; padding: 0 20px 90px; }
+
+/* ─── Site header（プリズムロゴ）──────────── */
+.site-header { text-align: center; padding: 34px 0 22px; }
+.logo-mark {
+  display: inline-flex; align-items: center; gap: 12px; margin-bottom: 7px;
+}
+.prism-icon { width: 34px; height: 34px; }
+.logo-text {
+  font-family: 'Outfit', sans-serif;
+  font-size: 23px; font-weight: 700; letter-spacing: 4px;
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-green), var(--brand-red));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; color: transparent;
+}
+.header-sub { font-size: 11px; color: var(--text-secondary); letter-spacing: 2px; }
+
+/* ─── Progress bar（スティッキー）─────────── */
+.progressbar {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg-primary);
+  padding: 12px 0;
+}
+.progressbar-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 8px;
+}
+.progress-text {
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px; color: var(--text-primary); font-weight: 700;
+}
+.progress-count {
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px; color: var(--text-secondary); font-weight: 600;
+}
+.progress-track {
+  height: 5px; background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 3px; transition: width 0.35s ease;
+  background: linear-gradient(90deg, var(--brand-blue), var(--brand-green), var(--brand-red));
+}
+
+/* ─── Card ───────────────────────────────── */
+.card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 30px;
+  margin-top: 22px;
+}
+
+/* ─── Phase header ───────────────────────── */
+.phase-head { margin-top: 26px; margin-bottom: 4px; }
+.phase-eyebrow {
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+  color: var(--accent); margin-bottom: 5px;
+}
+.phase-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 22px; font-weight: 800;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.phase-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 6px; }
+.phase-count {
+  font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* ─── Intro ──────────────────────────────── */
+.intro-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 24px; font-weight: 800; margin-bottom: 6px;
+}
+.intro-lead { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+.intro-callout {
+  background: var(--bg-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 14px 16px; font-size: 13px; margin-bottom: 22px;
+}
+.intro-callout strong { color: var(--accent); }
+.steps-preview { display: flex; gap: 8px; margin-bottom: 24px; }
+.step-chip {
+  flex: 1; border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; background: var(--bg-soft);
+}
+.step-chip .n {
+  font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 700;
+  color: var(--accent); letter-spacing: 1px;
+}
+.step-chip .t { font-size: 12px; font-weight: 600; }
+.step-chip .d { font-size: 10.5px; color: var(--text-secondary); }
+
+.field { margin-bottom: 18px; }
+.field-label {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 6px; display: block;
+}
+.field input, .field select {
+  width: 100%; padding: 11px 13px;
+  border: 1px solid var(--border-strong); border-radius: 9px;
+  font-family: 'Noto Sans JP', sans-serif; font-size: 14px;
+  background: var(--bg-white); color: var(--text-primary);
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+.tier-fixed {
+  background: var(--bg-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 11px 13px; font-size: 12.5px; color: var(--text-secondary);
+}
+.tier-fixed strong { color: var(--accent); }
+
+/* ─── Question card / rows ───────────────── */
+.qcard {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 4px 30px;
+  margin-top: 16px;
+}
+.q-item { padding: 30px 0; border-bottom: 1px solid var(--border); }
+.q-item:last-child { border-bottom: none; }
+.q-item.flash { animation: flash 0.9s ease; }
+@keyframes flash {
+  0%, 100% { background: transparent; }
+  30%, 60% { background: var(--accent-soft); }
+}
+.q-text {
+  font-size: 15.5px; font-weight: 500; line-height: 1.7;
+  margin-bottom: 22px;
+}
+.q-num {
+  font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
+  color: var(--text-dim); margin-right: 8px;
+}
+
+/* ─── Likert ─────────────────────────────── */
+.likert-row {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+}
+.likert-end {
+  font-size: 12px; font-weight: 600; min-width: 76px;
+  color: var(--text-secondary); flex-shrink: 0;
+}
+.likert-end.left { text-align: right; color: var(--scale-left); }
+.likert-end.right { text-align: left; color: var(--scale-right); }
+.scale {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px; flex: 1; max-width: 460px;
+}
+.opt {
+  cursor: pointer; transition: transform 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; padding: 0;
+}
+.opt:hover { transform: scale(1.09); }
+.circle {
+  border-radius: 50%; border: 2px solid var(--border-strong);
+  background: transparent; transition: background 0.2s, border-color 0.2s;
+}
+/* 緑〜紫スケール ─ 位置ごとの配色（ランプ／砂時計 共通） */
+.scale .opt:nth-child(1) .circle { border-color: #22c55e; }
+.scale .opt:nth-child(2) .circle { border-color: #65d36e; }
+.scale .opt:nth-child(3) .circle { border-color: #a8d672; }
+.scale .opt:nth-child(4) .circle { border-color: #d1d5db; }
+.scale .opt:nth-child(5) .circle { border-color: #b196e8; }
+.scale .opt:nth-child(6) .circle { border-color: #9b7fd9; }
+.scale .opt:nth-child(7) .circle { border-color: #8b5cf6; }
+.scale .opt.selected:nth-child(1) .circle { background: #22c55e; }
+.scale .opt.selected:nth-child(2) .circle { background: #65d36e; }
+.scale .opt.selected:nth-child(3) .circle { background: #a8d672; }
+.scale .opt.selected:nth-child(4) .circle { background: #d1d5db; }
+.scale .opt.selected:nth-child(5) .circle { background: #b196e8; }
+.scale .opt.selected:nth-child(6) .circle { background: #9b7fd9; }
+.scale .opt.selected:nth-child(7) .circle { background: #8b5cf6; }
+
+/* ramp (STEP1) ─ 単極・左→右でゆるやかに拡大 */
+.scale.ramp .opt:nth-child(1) .circle { width: 35px; height: 35px; }
+.scale.ramp .opt:nth-child(2) .circle { width: 38px; height: 38px; }
+.scale.ramp .opt:nth-child(3) .circle { width: 41px; height: 41px; }
+.scale.ramp .opt:nth-child(4) .circle { width: 44px; height: 44px; }
+.scale.ramp .opt:nth-child(5) .circle { width: 47px; height: 47px; }
+.scale.ramp .opt:nth-child(6) .circle { width: 50px; height: 50px; }
+.scale.ramp .opt:nth-child(7) .circle { width: 53px; height: 53px; }
+
+/* hourglass (STEP2) ─ 双極・両端がやや大きく中央がやや小さい */
+.scale.hour .opt:nth-child(1) .circle,
+.scale.hour .opt:nth-child(7) .circle { width: 50px; height: 50px; }
+.scale.hour .opt:nth-child(2) .circle,
+.scale.hour .opt:nth-child(6) .circle { width: 45px; height: 45px; }
+.scale.hour .opt:nth-child(3) .circle,
+.scale.hour .opt:nth-child(5) .circle { width: 40px; height: 40px; }
+.scale.hour .opt:nth-child(4) .circle { width: 36px; height: 36px; }
+
+/* STEP2 poles */
+.poles { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.pole { flex: 1; }
+.pole.right { text-align: right; }
+.pole b { font-size: 13.5px; font-weight: 700; }
+.pole span { display: block; font-size: 11.5px; color: var(--text-secondary); }
+.hour-mid { text-align: center; font-size: 10.5px; color: var(--text-dim); margin-top: 4px; }
+.hour-result {
+  margin-top: 10px; font-size: 12px; text-align: center;
+  color: var(--text-dim); font-weight: 600;
+}
+.hour-result.set { color: var(--accent); }
+
+/* ─── tiebreak / ranking (STEP3) ─────────── */
+.tie-group {
+  border: 1px solid var(--border); border-radius: 13px;
+  padding: 16px 18px; margin-top: 16px; background: var(--bg-white);
+}
+.tie-head {
+  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
+}
+.tie-badge {
+  font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 700;
+  background: var(--bg-soft); border: 1px solid var(--border-strong);
+  border-radius: 5px; padding: 2px 8px; color: var(--text-secondary);
+}
+.tie-note { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 12px; }
+.callout {
+  background: var(--bg-soft); border-left: 3px solid var(--accent);
+  border-radius: 4px; padding: 13px 15px; font-size: 12.5px;
+  color: var(--text-secondary); margin-bottom: 6px;
+}
+.callout strong { color: var(--accent); }
+
+.rank-list { display: flex; flex-direction: column; gap: 9px; }
+.rank-item {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--border-strong); border-radius: 11px;
+  padding: 11px 13px; background: var(--bg-white);
+}
+.rank-badge {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 13px;
+  background: var(--bg-soft); color: var(--text-secondary);
+}
+.rank-item.top .rank-badge { background: var(--btn-dark); color: #fff; }
+.rank-body { flex: 1; min-width: 0; }
+.rank-name { font-weight: 600; font-size: 13.5px; }
+.rank-name .rid {
+  font-family: 'Outfit', sans-serif; font-size: 11px; color: var(--text-dim);
+  font-weight: 700; margin-right: 6px;
+}
+.rank-desc { font-size: 11px; color: var(--text-secondary); }
+.rank-moves { display: flex; flex-direction: column; gap: 3px; }
+.rank-move {
+  width: 32px; height: 19px; border-radius: 6px;
+  border: 1px solid var(--border-strong); background: var(--bg-white);
+  cursor: pointer; font-size: 10px; color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+}
+.rank-move:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.rank-move:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ─── Nav ────────────────────────────────── */
+.nav { display: flex; gap: 12px; margin-top: 26px; }
+.btn {
+  font-family: 'Noto Sans JP', sans-serif; font-size: 14px; font-weight: 600;
+  padding: 13px 22px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--bg-white);
+  color: var(--text-primary);
+}
+.btn-back { flex: 0 0 auto; }
+.btn-next {
+  flex: 1; background: var(--btn-dark); color: #fff; border-color: var(--btn-dark);
+}
+.btn-next:disabled {
+  background: var(--border); border-color: var(--border);
+  color: var(--text-dim); cursor: not-allowed;
+}
+.btn-ghost { background: transparent; }
+.nav-hint {
+  font-size: 11.5px; color: #b45309; margin-top: 9px; text-align: center;
+}
+
+/* ─── Done ───────────────────────────────── */
+.done-icon {
+  width: 54px; height: 54px; border-radius: 50%;
+  background: rgba(22,163,74,0.1); color: var(--ok);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px;
+}
+.done-title { font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.done-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 22px; }
+.save-status { font-size: 12px; padding: 10px 13px; border-radius: 8px; margin-bottom: 18px; }
+.save-status.ok { background: rgba(22,163,74,0.1); color: #15803d; }
+.save-status.warn { background: rgba(180,83,9,0.09); color: #b45309; }
+.json-label {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;
+}
+.json-box {
+  width: 100%; height: 240px;
+  font-family: 'Outfit', monospace; font-size: 11px; line-height: 1.6;
+  border: 1px solid var(--border-strong); border-radius: 9px;
+  padding: 12px; background: var(--bg-soft); color: var(--text-primary);
+  resize: vertical;
+}
+.copy-btn {
+  font-size: 11px; padding: 4px 11px; border-radius: 6px;
+  border: 1px solid var(--border-strong); background: var(--bg-white); cursor: pointer;
+}
+.summary-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px;
+  font-size: 12px; margin: 16px 0 20px;
+}
+.summary-grid .k { color: var(--text-secondary); }
+.summary-grid .v { font-weight: 600; text-align: right; }
+
+.err { color: #dc2626; font-size: 12px; margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .qcard { padding: 2px 16px; }
+  .q-item { padding: 22px 0; }
+  .q-text { font-size: 14px; margin-bottom: 16px; }
+  .likert-row { gap: 6px; }
+  .scale { gap: 6px; }
+  .likert-end { font-size: 10.5px; min-width: 52px; }
+  .scale.ramp .opt:nth-child(1) .circle { width: 27px; height: 27px; }
+  .scale.ramp .opt:nth-child(2) .circle { width: 29px; height: 29px; }
+  .scale.ramp .opt:nth-child(3) .circle { width: 31px; height: 31px; }
+  .scale.ramp .opt:nth-child(4) .circle { width: 33px; height: 33px; }
+  .scale.ramp .opt:nth-child(5) .circle { width: 35px; height: 35px; }
+  .scale.ramp .opt:nth-child(6) .circle { width: 37px; height: 37px; }
+  .scale.ramp .opt:nth-child(7) .circle { width: 39px; height: 39px; }
+  .scale.hour .opt:nth-child(1) .circle,
+  .scale.hour .opt:nth-child(7) .circle { width: 39px; height: 39px; }
+  .scale.hour .opt:nth-child(2) .circle,
+  .scale.hour .opt:nth-child(6) .circle { width: 35px; height: 35px; }
+  .scale.hour .opt:nth-child(3) .circle,
+  .scale.hour .opt:nth-child(5) .circle { width: 31px; height: 31px; }
+  .scale.hour .opt:nth-child(4) .circle { width: 28px; height: 28px; }
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="app">
+  <header class="site-header">
+    <div class="logo-mark">
+      <svg class="prism-icon" viewBox="0 0 36 36" aria-hidden="true">
+        <defs>
+          <linearGradient id="prismGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3b82f6"/>
+            <stop offset="50%" stop-color="#22c55e"/>
+            <stop offset="100%" stop-color="#ef4444"/>
+          </linearGradient>
+        </defs>
+        <polygon points="18,3 33,31 3,31" fill="none" stroke="url(#prismGrad)" stroke-width="2.4"/>
+      </svg>
+      <span class="logo-text">PRISM LOGIC</span>
+    </div>
+    <div class="header-sub">PERSONA DESIGN DIAGNOSTICS</div>
+  </header>
+  <div class="progressbar">
+    <div class="progressbar-row">
+      <span class="progress-text" id="progressText">STEP 1 / 3</span>
+      <span class="progress-count" id="progressCount"></span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  </div>
+  <div id="root"></div>
+</div>
+
+<script>
+/* ============================================================
+   PRISM LOGIC ─ 問診ページ（配布用・Supabase トークン式）
+   ------------------------------------------------------------
+   受検依頼ごとに発行された ?t=<token> でアクセスする。
+   トークンを survey_lookup で照会して企業設定と回答者情報を取得し、
+   回答完了時に survey_submit で Supabase へ保存する。
+   ============================================================ */
+const SUPABASE_URL = 'https://ntsqmhcyvopnsxdhtwzj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_e6kLk_fC9OIiaMhiiqKjXA_pFE1KKc1';
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+/* URL の ?t=<token> を受検依頼トークンとして読む */
+const SURVEY_TOKEN = new URLSearchParams(location.search).get('t');
+
+/* 企業設定の既定値（survey_lookup 成功時に上書きされる） */
+const DEFAULT_CONFIG = {
+  companyId: 'comp_001', companyName: '',
+  jobTypes: [], ranks: [], enabledItems: [],
+};
+
+/* ============================================================
+   STEP3-i 同点タイブレークの発火閾値
+   強度が同点になった項目群がこの人数以上で順位タスクを発火。
+   3問同点は係数が全て1.0で差がつかない（=空回り）ため対象外。
+   集計側 prism-aggregation-logic-v6.js の PRISM_CONFIG.TIEBREAK_MIN_GROUP と一致。
+   ============================================================ */
+const TIEBREAK_MIN_GROUP = 4;
+
+/* STEP2 のページあたり設問数。STEP1 は全項目を1ページにまとめる（ページ送りなし）。 */
+const STEP2_PER_PAGE = 4;
+
+/* ============================================================
+   項目定義 ─ マスター（全Tier）
+   kind: 'binary'    = STEP1 強度 + STEP2 方向(A/B/neutral)
+         'intensity' = STEP1 強度のみ（方向は neutral 固定）
+         'ranking'   = G3。STEP1 強度 + STEP3-ii 5ドライバー順位づけ
+   name は STEP1/STEP2 では非表示。STEP3-i の順位づけ時にのみ提示する。
+   cat は集計用に保持するが、問診UIには一切出さない。
+   ============================================================ */
+const ITEMS_MASTER = [
+  { id:'H1', cat:'heart', name:'仕事観', kind:'binary',
+    q:'仕事を通じて「何を大事にするか」という価値観は、この仕事で重要だと思いますか？',
+    poleA:{label:'貢献型', desc:'人や組織の役に立つことに価値を置く'},
+    poleB:{label:'探究型', desc:'面白さや知的な手応えに価値を置く'} },
+  { id:'H2', cat:'heart', name:'倫理・誠実性', kind:'binary',
+    q:'ルールや約束を守る誠実さは、この仕事で重要だと思いますか？',
+    poleA:{label:'規範型', desc:'ルール・基準を守ることを重んじる'},
+    poleB:{label:'良心型', desc:'自分の良心・信念に従うことを重んじる'} },
+  { id:'H3', cat:'heart', name:'他者・組織', kind:'binary',
+    q:'他者や組織との関わり方は、この仕事で重要だと思いますか？',
+    poleA:{label:'共生型', desc:'周囲と調和し、支え合う関わり方'},
+    poleB:{label:'触発型', desc:'刺激し合い、高め合う関わり方'} },
+  { id:'H4', cat:'heart', name:'ユーモア', kind:'binary',
+    q:'ユーモアやウィットは、この仕事で重要だと思いますか？',
+    poleA:{label:'親和型', desc:'ユーモアで場を和ませ、関係をなめらかにする'},
+    poleB:{label:'着想型', desc:'ユーモアで見方をずらし、発想のきっかけをつくる'} },
+  { id:'H5', cat:'heart', name:'自己開示', kind:'binary',
+    q:'自分のことを率直に開示することは、この仕事で重要だと思いますか？',
+    poleA:{label:'共有型', desc:'経験や弱みを率直に開き、信頼を築く'},
+    poleB:{label:'表明型', desc:'考えや判断の理由を明確に伝え、透明性を保つ'} },
+
+  { id:'G1', cat:'gut', name:'自律動機', kind:'intensity',
+    q:'指示されなくても自分から動く主体性は、この仕事で重要だと思いますか？' },
+  { id:'G2', cat:'gut', name:'知的好奇心', kind:'binary',
+    q:'新しいことを学び、知ろうとする姿勢は、この仕事で重要だと思いますか？',
+    poleA:{label:'広域型', desc:'広く浅く、多方面に関心が向く'},
+    poleB:{label:'深堀型', desc:'狭く深く、一つを掘り下げる'} },
+  { id:'G3', cat:'gut', name:'動機方向性', kind:'ranking',
+    qStrength:'この仕事で力を発揮するうえで、「何に動機づけられるか」は重要だと思いますか？',
+    q:'この仕事で力を発揮するうえで、次の5つを「大事な順」に並べてください。',
+    drivers:[
+      { id:'seika',  label:'成果', desc:'やり遂げた手応え・数字が出る' },
+      { id:'nakama', label:'仲間', desc:'信頼できる仲間と働く' },
+      { id:'sairyo', label:'裁量', desc:'自分で決めて動ける' },
+      { id:'hyoka',  label:'評価', desc:'認められ、処遇に反映される' },
+      { id:'anshin', label:'安心', desc:'生活と立場が安定している' },
+    ] },
+
+  { id:'C1', cat:'core', name:'内省的学習', kind:'binary',
+    q:'経験から学び取る内省的な姿勢は、この仕事で重要だと思いますか？',
+    poleA:{label:'体験型', desc:'実際にやってみることで学ぶ'},
+    poleB:{label:'概念型', desc:'理屈・枠組みで理解して学ぶ'} },
+  { id:'C2', cat:'core', name:'自己認識', kind:'binary',
+    q:'自分の強み・弱みを正しく把握していることは、この仕事で重要だと思いますか？',
+    poleA:{label:'内省型', desc:'自分を見つめて把握する'},
+    poleB:{label:'対話型', desc:'他者の意見から把握する'} },
+  { id:'C3', cat:'core', name:'情緒安定性', kind:'binary',
+    q:'プレッシャー下でも気持ちが安定していることは、この仕事で重要だと思いますか？',
+    poleA:{label:'安定型', desc:'もともと動じにくい'},
+    poleB:{label:'回復型', desc:'動揺しても早く立て直す'} },
+  { id:'C4', cat:'core', name:'粘り強さ', kind:'intensity',
+    q:'うまくいかないときに粘り強く続ける力は、この仕事で重要だと思いますか？' },
+  { id:'C5', cat:'core', name:'失敗対処戦略', kind:'binary',
+    q:'失敗したあとの立て直し方は、この仕事で重要だと思いますか？',
+    poleA:{label:'切替型', desc:'気持ちを切り替えて次へ進む'},
+    poleB:{label:'追究型', desc:'原因を徹底的に突き止める'} },
+  { id:'C6', cat:'core', name:'几帳面性', kind:'binary',
+    q:'細部まで丁寧に仕上げることは、この仕事で重要だと思いますか？',
+    poleA:{label:'完成度優先', desc:'質を高めることを優先する'},
+    poleB:{label:'期限優先', desc:'期限を守ることを優先する'} },
+  { id:'C7', cat:'core', name:'対人協調', kind:'binary',
+    q:'周囲と歩調を合わせて動くことは、この仕事で重要だと思いますか？',
+    poleA:{label:'共感型', desc:'相手の気持ちに寄り添う'},
+    poleB:{label:'調整型', desc:'利害を実務的に調整する'} },
+  { id:'C8', cat:'core', name:'曖昧さ耐性', kind:'binary',
+    q:'答えのない曖昧な状況に耐える力は、この仕事で重要だと思いますか？',
+    poleA:{label:'探索型', desc:'手探りで進めながら考える'},
+    poleB:{label:'直感型', desc:'直感で素早く判断する'} },
+
+  { id:'D1', cat:'head', name:'認知力', kind:'binary',
+    q:'物事を素早く的確に理解する力は、この仕事で重要だと思いますか？',
+    poleA:{label:'処理速度型', desc:'速く回すことに強い'},
+    poleB:{label:'処理深度型', desc:'深く考えることに強い'} },
+  { id:'D2', cat:'head', name:'構想力', kind:'binary',
+    q:'先を見通して構想を描く力は、この仕事で重要だと思いますか？',
+    poleA:{label:'ビジョン型', desc:'未来像から描く'},
+    poleB:{label:'パターン型', desc:'規則性から描く'} },
+  { id:'D3', cat:'head', name:'洞察力', kind:'binary',
+    q:'本質や背景を見抜く力は、この仕事で重要だと思いますか？',
+    poleA:{label:'直観型', desc:'ひらめきで見抜く'},
+    poleB:{label:'観察型', desc:'観察の積み重ねで見抜く'} },
+
+  /* ─── Tier 2: Harder層（育成可能）16項目・intensity ─── */
+  { id:'E1', cat:'head', tier:2, name:'近づきやすさ', kind:'intensity',
+    q:'相手が気軽に話しかけられる、近づきやすい雰囲気をまとう力は、この仕事で重要だと思いますか？' },
+  { id:'E2', cat:'head', tier:2, name:'上司との関係構築', kind:'intensity',
+    q:'上司の指導や指摘を素直に受け取り、上司とうまく協働する力は、この仕事で重要だと思いますか？' },
+  { id:'E3', cat:'head', tier:2, name:'上位経営層との関わり', kind:'intensity',
+    q:'経営層や上位者の前でも萎縮せず、自然体で意見を伝える力は、この仕事で重要だと思いますか？' },
+  { id:'E4', cat:'head', tier:2, name:'思いやり', kind:'intensity',
+    q:'他者の困難や苦境に気づき、共感的に対応する力は、この仕事で重要だと思いますか？' },
+  { id:'E5', cat:'head', tier:2, name:'対立処理', kind:'intensity',
+    q:'対立や衝突を避けず、建設的に扱って合意形成まで持ち込む力は、この仕事で重要だと思いますか？' },
+  { id:'E6', cat:'head', tier:2, name:'対人理解', kind:'intensity',
+    q:'場の空気や、相手の立場・動機を読み取る力は、この仕事で重要だと思いますか？' },
+  { id:'E7', cat:'head', tier:2, name:'同僚・他部署との関係構築', kind:'intensity',
+    q:'他部署や同僚と協力関係を築き、組織横断で物事を進める力は、この仕事で重要だと思いますか？' },
+  { id:'E8', cat:'head', tier:2, name:'交渉', kind:'intensity',
+    q:'利害が対立する場面で、双方が納得する合意に持ち込む交渉力は、この仕事で重要だと思いますか？' },
+  { id:'E9', cat:'head', tier:2, name:'組織内立ち回り', kind:'intensity',
+    q:'組織の公式・非公式の構造を理解し、誰に相談すれば動くかを掴む力は、この仕事で重要だと思いますか？' },
+  { id:'E10', cat:'head', tier:2, name:'組織政治への感度', kind:'intensity',
+    q:'組織内の力関係や利害を読み、要所を押さえて動く力は、この仕事で重要だと思いますか？' },
+  { id:'E11', cat:'head', tier:2, name:'創造性', kind:'intensity',
+    q:'既存の枠にとらわれず、新しいアイデアを生み出す力は、この仕事で重要だと思いますか？' },
+  { id:'E12', cat:'head', tier:2, name:'意思決定の質', kind:'intensity',
+    q:'分析と経験にもとづいて、質の高い判断を下す力は、この仕事で重要だと思いますか？' },
+  { id:'E13', cat:'head', tier:2, name:'即応的学習', kind:'intensity',
+    q:'未経験の課題でも、走りながら素早く学んで対応する力は、この仕事で重要だと思いますか？' },
+  { id:'E14', cat:'head', tier:2, name:'大局観', kind:'intensity',
+    q:'目の前の課題を、より大きな文脈や全体像の中に位置づけて捉える力は、この仕事で重要だと思いますか？' },
+  { id:'E15', cat:'head', tier:2, name:'問題解決', kind:'intensity',
+    q:'問題の本質を見極め、論理的に分析して有効な解決策にたどり着く力は、この仕事で重要だと思いますか？' },
+  { id:'E16', cat:'head', tier:2, name:'自己研鑽', kind:'intensity',
+    q:'自分の弱みに自覚的で、それを改善し続ける力は、この仕事で重要だと思いますか？' },
+
+  /* ─── Tier 3: 管理職向け 11項目・intensity ─── */
+  { id:'M1', cat:'mgmt', tier:3, name:'部下・他者の育成', kind:'intensity',
+    q:'部下や周囲の人材の成長を支援し、引き上げる力は、管理職にとって重要だと思いますか？' },
+  { id:'M2', cat:'mgmt', tier:3, name:'部下への直言', kind:'intensity',
+    q:'部下の問題や成果不足に対し、面と向かって率直に指摘する力は、管理職にとって重要だと思いますか？' },
+  { id:'M3', cat:'mgmt', tier:3, name:'他者の動機づけ', kind:'intensity',
+    q:'一人ひとりの動機を理解し、やる気を引き出す力は、管理職にとって重要だと思いますか？' },
+  { id:'M4', cat:'mgmt', tier:3, name:'部下への関心', kind:'intensity',
+    q:'部下を仕事だけでなく一人の人間として気にかける姿勢は、管理職にとって重要だと思いますか？' },
+  { id:'M5', cat:'mgmt', tier:3, name:'部下への公平性', kind:'intensity',
+    q:'えこひいきせず、部下を公平に扱う力は、管理職にとって重要だと思いますか？' },
+  { id:'M6', cat:'mgmt', tier:3, name:'効果的なチーム構築', kind:'intensity',
+    q:'多様なメンバーをまとめ、強いチームをつくる力は、管理職にとって重要だと思いますか？' },
+  { id:'M7', cat:'mgmt', tier:3, name:'ビジョンの浸透', kind:'intensity',
+    q:'組織のビジョンや存在意義を語り、メンバーに浸透させる力は、管理職にとって重要だと思いますか？' },
+  { id:'M8', cat:'mgmt', tier:3, name:'管理者としての勇気', kind:'intensity',
+    q:'言いにくい真実を伝え、不人気な判断も引き受ける勇気は、管理職にとって重要だと思いますか？' },
+  { id:'M9', cat:'mgmt', tier:3, name:'局面を引き取る統率力', kind:'intensity',
+    q:'危機や困難な局面で前に出て指揮を執る統率力は、管理職にとって重要だと思いますか？' },
+  { id:'M10', cat:'mgmt', tier:3, name:'多様性のマネジメント', kind:'intensity',
+    q:'多様な背景・属性のメンバーを公平に扱い、それぞれの強みを活かす力は、管理職にとって重要だと思いますか？' },
+  { id:'M11', cat:'mgmt', tier:3, name:'イノベーションのマネジメント', kind:'intensity',
+    q:'創造的なアイデアを評価・選別し、実用化につなげる仕組みをつくる力は、管理職にとって重要だと思いますか？' },
+];
+
+/* 全項目に tier を補完（未指定は Tier 1） */
+ITEMS_MASTER.forEach(it => { if (it.tier == null) it.tier = 1; });
+
+/* 企業設定と出題対象。実際の値は applyConfig() で確定する（トークン照会後）。 */
+let CONFIG = Object.assign({}, DEFAULT_CONFIG);
+let ITEMS = [];
+let MAX_TIER = 1;
+let OPTIONAL_COUNT = 0;
+let binaryItems = [];
+const STEP1_PAGES = 1;
+let STEP2_PAGES = 1;
+const step1Slice = () => ITEMS;
+const step2Slice = p => binaryItems.slice(p * STEP2_PER_PAGE, (p + 1) * STEP2_PER_PAGE);
+
+/* survey_lookup の結果（または既定値）から出題対象を確定する。 */
+function applyConfig(cfg) {
+  CONFIG = Object.assign({}, DEFAULT_CONFIG, cfg || {});
+  if (!Array.isArray(CONFIG.enabledItems)) CONFIG.enabledItems = [];
+  ITEMS = ITEMS_MASTER.filter(
+    it => it.tier === 1 || CONFIG.enabledItems.indexOf(it.id) !== -1
+  );
+  MAX_TIER = ITEMS.reduce((m, it) => Math.max(m, it.tier || 1), 1);
+  OPTIONAL_COUNT = ITEMS.filter(it => (it.tier || 1) > 1).length;
+  binaryItems = ITEMS.filter(it => it.kind === 'binary');
+  STEP2_PAGES = Math.max(1, Math.ceil(binaryItems.length / STEP2_PER_PAGE));
+}
+
+/* ============================================================
+   状態
+   ============================================================ */
+const state = {
+  screen: 'intro',          // 'intro' | screen-obj | 'done'
+  respondent: { name:'', jobType:'', rank:'' },
+  strength: {},             // id -> 1..7   (STEP1)
+  direction: {},            // id -> 1..7   (STEP2, binary のみ。砂時計の位置)
+  g3order: null,            // [driverId..] (STEP3-ii)
+  tieOrders: {},            // strengthValue -> [id..]  (STEP3-i 作業順)
+};
+
+/* 砂時計の位置(1-7) → direction(A/B/neutral) */
+function scaleToDir(p) {
+  if (p == null) return null;
+  if (p <= 3) return 'A';
+  if (p === 4) return 'neutral';
+  return 'B';
+}
+
+/* ============================================================
+   STEP3-i 同点グループの算出
+   ============================================================ */
+function computeTieGroups() {
+  const byS = {};
+  ITEMS.forEach(it => {
+    const s = state.strength[it.id];
+    if (s == null) return;
+    (byS[s] || (byS[s] = [])).push(it.id);
+  });
+  const groups = [];
+  Object.keys(byS).map(Number).sort((a, b) => b - a).forEach(s => {
+    if (byS[s].length >= TIEBREAK_MIN_GROUP) groups.push({ strength: s, ids: byS[s] });
+  });
+  return groups;
+}
+function tieOrderFor(group) {
+  const saved = state.tieOrders[group.strength];
+  const sameSet = Array.isArray(saved) && saved.length === group.ids.length
+    && group.ids.every(id => saved.indexOf(id) !== -1);
+  if (sameSet) return saved;
+  const init = group.ids.slice();
+  state.tieOrders[group.strength] = init;
+  return init;
+}
+
+/* ============================================================
+   画面シーケンス
+   ============================================================ */
+function screens() {
+  const arr = [];
+  for (let p = 0; p < STEP1_PAGES; p++) arr.push({ phase:'step1', page:p });
+  for (let p = 0; p < STEP2_PAGES; p++) arr.push({ phase:'step2', page:p });
+  if (computeTieGroups().length > 0) arr.push({ phase:'step3i' });
+  arr.push({ phase:'step3ii' });
+  return arr;
+}
+function screenKey(s) {
+  if (s === 'intro' || s === 'done') return s;
+  return s.phase + (s.page != null ? '#' + s.page : '');
+}
+function currentIndex() {
+  const key = screenKey(state.screen);
+  return screens().findIndex(s => screenKey(s) === key);
+}
+function goNext() {
+  const seq = screens();
+  if (state.screen === 'intro') {
+    state.screen = seq[0]; render(); window.scrollTo(0, 0); return;
+  }
+  const i = currentIndex();
+  if (i < 0 || i >= seq.length - 1) { submitFlow(); return; }
+  state.screen = seq[i + 1];
+  render(); window.scrollTo(0, 0);
+}
+function goPrev() {
+  const seq = screens();
+  const i = currentIndex();
+  state.screen = (i <= 0) ? 'intro' : seq[i - 1];
+  render(); window.scrollTo(0, 0);
+}
+
+/* ============================================================
+   完了判定
+   ============================================================ */
+function step1PageDone(p) { return step1Slice(p).every(it => state.strength[it.id] != null); }
+function step2PageDone(p) { return step2Slice(p).every(it => state.direction[it.id] != null); }
+
+/* ============================================================
+   レンダリング
+   ============================================================ */
+const root = document.getElementById('root');
+
+function render() {
+  if (state.screen === 'intro') renderIntro();
+  else if (state.screen === 'submitting') { renderSubmitting(); updateProgress(); return; }
+  else if (state.screen === 'submit-error') { renderSubmitError(); updateProgress(); return; }
+  else if (state.screen === 'done') renderDone();
+  else if (state.screen.phase === 'step1') renderStep1(state.screen.page);
+  else if (state.screen.phase === 'step2') renderStep2(state.screen.page);
+  else if (state.screen.phase === 'step3i') renderStep3i();
+  else if (state.screen.phase === 'step3ii') renderStep3ii();
+  updateProgress();
+}
+
+function updateProgress() {
+  const fill = document.getElementById('progressFill');
+  const txt = document.getElementById('progressText');
+  const cnt = document.getElementById('progressCount');
+  if (state.screen === 'intro') {
+    fill.style.width = '0%'; txt.textContent = 'はじめに'; cnt.textContent = ''; return;
+  }
+  if (state.screen === 'done' || state.screen === 'submitting' || state.screen === 'submit-error') {
+    fill.style.width = '100%';
+    txt.textContent = state.screen === 'done' ? '完了' : '送信';
+    cnt.textContent = ''; return;
+  }
+  const seq = screens();
+  const i = currentIndex();
+  fill.style.width = ((i + 1) / (seq.length + 1) * 100) + '%';
+  const phaseNo = state.screen.phase === 'step1' ? 1 : state.screen.phase === 'step2' ? 2 : 3;
+  txt.textContent = 'STEP ' + phaseNo + ' / 3';
+  if (state.screen.phase === 'step1') {
+    const a = ITEMS.filter(it => state.strength[it.id] != null).length;
+    cnt.textContent = a + ' / ' + ITEMS.length + ' 問';
+  } else if (state.screen.phase === 'step2') {
+    const a = binaryItems.filter(it => state.direction[it.id] != null).length;
+    cnt.textContent = a + ' / ' + binaryItems.length + ' 問';
+  } else {
+    cnt.textContent = '順位づけ';
+  }
+}
+
+/* ─── イントロ ─────────────────────────── */
+function renderIntro() {
+  const total = ITEMS.length;
+  const r = state.respondent;
+  const idLine = [r.jobType, r.rank].filter(Boolean).join('・');
+  root.innerHTML = `
+    <div class="card">
+      <div class="intro-title">この仕事の問診</div>
+      <div class="intro-lead">${CONFIG.companyName || ''}</div>
+      <div class="intro-callout">
+        この問診は<strong>あなた自身を評価するものではありません</strong>。
+        「この仕事で成果を出すには何が大事か」について、あなたの考えを聞かせてください。
+        正解・不正解はありません。設問は順番に読んで、直感で答えてください。
+      </div>
+      <div class="steps-preview">
+        <div class="step-chip"><div class="n">STEP 1</div><div class="t">重要度</div>
+          <div class="d">各項目がこの仕事でどれだけ大事か</div></div>
+        <div class="step-chip"><div class="n">STEP 2</div><div class="t">方向</div>
+          <div class="d">どちらの型に近いか</div></div>
+        <div class="step-chip"><div class="n">STEP 3</div><div class="t">順位</div>
+          <div class="d">大事な順に並べる</div></div>
+      </div>
+      <div class="field">
+        <label class="field-label">回答者</label>
+        <div class="tier-fixed"><strong>${r.name}</strong>${idLine ? '　　' + idLine : ''}</div>
+      </div>
+      <div class="field">
+        <label class="field-label">問診範囲</label>
+        <div class="tier-fixed">
+          全 <strong>${total}問</strong>${OPTIONAL_COUNT > 0 ? `（中核 ${total - OPTIONAL_COUNT}問 ＋ 人事が選択した ${OPTIONAL_COUNT}問）` : ''}。
+          STEP1〜3 で回答します。所要 10〜15分。
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-next" id="startBtn">問診をはじめる</button>
+      </div>
+    </div>`;
+  document.getElementById('startBtn').onclick = () => { goNext(); };
+}
+
+/* ─── 共通: フェーズヘッダ ───────────────── */
+/* count 引数は後方互換のため受け取るが、進捗カウントは上部の進捗バーに表示する */
+function phaseHead(eyebrow, title, sub, count) {
+  return `
+    <div class="phase-head">
+      <div class="phase-eyebrow">${eyebrow}</div>
+      <div class="phase-title">${title}</div>
+      ${sub ? `<div class="phase-sub">${sub}</div>` : ''}
+    </div>`;
+}
+
+/* ─── 共通: ナビ ─────────────────────────── */
+function navHtml(nextLabel, enabled) {
+  return `
+    <div class="nav">
+      <button class="btn btn-back" id="backBtn">戻る</button>
+      <button class="btn btn-next" id="nextBtn" ${enabled ? '' : 'disabled'}>${nextLabel}</button>
+    </div>
+    <div class="nav-hint" id="navHint" style="display:none">未回答の設問があります。</div>`;
+}
+function bindNav(onNextOK, getFirstIncompleteId) {
+  document.getElementById('backBtn').onclick = goPrev;
+  const next = document.getElementById('nextBtn');
+  next.onclick = () => {
+    if (next.disabled) {
+      const id = getFirstIncompleteId && getFirstIncompleteId();
+      if (id) {
+        document.getElementById('navHint').style.display = 'block';
+        const el = document.querySelector(`.q-item[data-id="${id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior:'smooth', block:'center' });
+          el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+        }
+      }
+      return;
+    }
+    onNextOK();
+  };
+}
+
+/* ─── 共通: 7円スケール ──────────────────── */
+function scaleHtml(kind, id, sel) {
+  let opts = '';
+  for (let v = 1; v <= 7; v++) {
+    opts += `<button class="opt ${sel === v ? 'selected' : ''}" data-id="${id}" data-v="${v}">
+      <span class="circle"></span></button>`;
+  }
+  return `<div class="scale ${kind}">${opts}</div>`;
+}
+
+/* ─── STEP1: 強度フェーズ（ランプ型・タイトル非表示）──── */
+function renderStep1(page) {
+  const items = step1Slice(page);
+  const last = page === STEP1_PAGES - 1;
+  const answered = ITEMS.filter(it => state.strength[it.id] != null).length;
+
+  const rows = items.map(it => {
+    const qText = it.kind === 'ranking' ? it.qStrength : it.q;
+    return `
+      <div class="q-item" data-id="${it.id}">
+        <div class="q-text">${qText}</div>
+        <div class="likert-row">
+          <span class="likert-end left">そこそこ重要</span>
+          ${scaleHtml('ramp', it.id, state.strength[it.id])}
+          <span class="likert-end right">とても重要</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  root.innerHTML =
+    phaseHead('STEP 1 / 3 ─ 重要度', '重要度を選ぶ',
+      'この仕事で成果を出すうえで、各項目がどれくらい重要かを選んでください。円が大きいほど「重要」です。',
+      `${answered} / ${ITEMS.length} 問`) +
+    `<div class="qcard">${rows}</div>` +
+    navHtml(last ? 'STEP 2 へ進む' : '次へ', step1PageDone(page));
+
+  document.querySelectorAll('.opt').forEach(btn => {
+    btn.onclick = () => {
+      state.strength[btn.dataset.id] = Number(btn.dataset.v);
+      renderStep1(page);
+    };
+  });
+  bindNav(goNext, () => {
+    const f = items.find(it => state.strength[it.id] == null);
+    return f ? f.id : null;
+  });
+}
+
+/* ─── STEP2: 方向フェーズ（砂時計型・タイトル非表示）──── */
+function renderStep2(page) {
+  const items = step2Slice(page);
+  const last = page === STEP2_PAGES - 1;
+  const answered = binaryItems.filter(it => state.direction[it.id] != null).length;
+
+  const rows = items.map(it => {
+    const sel = state.direction[it.id];
+    const dir = scaleToDir(sel);
+    const resultText = sel == null ? '上の円から、近いほうを選んでください'
+      : dir === 'A' ? `→ ${it.poleA.label} 寄り`
+      : dir === 'B' ? `→ ${it.poleB.label} 寄り`
+      : '→ どちらでもない';
+    return `
+      <div class="q-item" data-id="${it.id}">
+        <div class="q-text">この仕事で成果を出すうえで、次の2つの考え方のうち、より近いのはどちらだと思いますか？</div>
+        <div class="poles">
+          <div class="pole left"><b>${it.poleA.label}</b><span>${it.poleA.desc}</span></div>
+          <div class="pole right"><b>${it.poleB.label}</b><span>${it.poleB.desc}</span></div>
+        </div>
+        <div class="likert-row">${scaleHtml('hour', it.id, sel)}</div>
+        <div class="hour-mid">中央＝どちらでもない</div>
+        <div class="hour-result ${sel != null ? 'set' : ''}">${resultText}</div>
+      </div>`;
+  }).join('');
+
+  root.innerHTML =
+    phaseHead('STEP 2 / 3 ─ 方向', '近いほうを選ぶ',
+      '左右に示した2つの考え方のうち、この仕事に近いのはどちらかを選びます。両端ほど「はっきりそちら寄り」です。',
+      `${answered} / ${binaryItems.length} 問`) +
+    `<div class="qcard">${rows}</div>` +
+    navHtml(last ? 'STEP 3 へ進む' : '次へ', step2PageDone(page));
+
+  document.querySelectorAll('.opt').forEach(btn => {
+    btn.onclick = () => {
+      state.direction[btn.dataset.id] = Number(btn.dataset.v);
+      renderStep2(page);
+    };
+  });
+  bindNav(goNext, () => {
+    const f = items.find(it => state.direction[it.id] == null);
+    return f ? f.id : null;
+  });
+}
+
+/* ─── 共通: 並べ替えリスト ───────────────── */
+function rankListHtml(order, lookup) {
+  return `<div class="rank-list">` + order.map((id, i) => {
+    const d = lookup(id);
+    return `
+      <div class="rank-item ${i === 0 ? 'top' : ''}">
+        <div class="rank-badge">${i + 1}</div>
+        <div class="rank-body">
+          <div class="rank-name">${d.rid ? `<span class="rid">${d.rid}</span>` : ''}${d.label}</div>
+          ${d.desc ? `<div class="rank-desc">${d.desc}</div>` : ''}
+        </div>
+        <div class="rank-moves">
+          <button class="rank-move" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button class="rank-move" data-i="${i}" data-dir="1" ${i === order.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+      </div>`;
+  }).join('') + `</div>`;
+}
+function bindRankMoves(order, rerender) {
+  document.querySelectorAll('.rank-move').forEach(btn => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.i), j = i + Number(btn.dataset.dir);
+      if (j < 0 || j >= order.length) return;
+      const t = order[i]; order[i] = order[j]; order[j] = t;
+      rerender();
+    };
+  });
+}
+
+/* ─── STEP3-i: 素質の同点タイブレーク（ここで初めてタイトル提示）──── */
+function renderStep3i() {
+  const groups = computeTieGroups();
+  const itemById = id => ITEMS.find(it => it.id === id);
+
+  const groupsHtml = groups.map(g => {
+    const order = tieOrderFor(g);
+    return `
+      <div class="tie-group" data-strength="${g.strength}">
+        <div class="tie-head">同じ重要度をつけた項目
+          <span class="tie-badge">重要度 ${g.strength} ／ ${g.ids.length}項目</span>
+        </div>
+        <div class="tie-note">この ${g.ids.length} 項目はすべて重要度 ${g.strength} と答えています。
+          そのなかでも「より大事だと思う順」に並べ替えてください。</div>
+        ${rankListHtml(order, id => {
+          const it = itemById(id);
+          return { rid: it.id, label: it.name, desc: null };
+        })}
+      </div>`;
+  }).join('');
+
+  root.innerHTML =
+    phaseHead('STEP 3 / 3 ─ 順位（1/2）', '同じ重要度の項目に順位をつける', '', null) +
+    `<div class="callout">同じ重要度を選んだ項目が複数あります。
+      ここで各項目の名前をはじめてお見せします。そのなかの<strong>優先順位</strong>を教えてください。
+      上位ほど重視される項目として扱います。</div>` +
+    groupsHtml +
+    navHtml('次へ（動機の順位）', true);
+
+  groups.forEach(g => {
+    const order = state.tieOrders[g.strength];
+    document.querySelectorAll(`.tie-group[data-strength="${g.strength}"] .rank-move`).forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.dataset.i), j = i + Number(btn.dataset.dir);
+        if (j < 0 || j >= order.length) return;
+        const t = order[i]; order[i] = order[j]; order[j] = t;
+        renderStep3i();
+      };
+    });
+  });
+  bindNav(goNext, () => null);
+}
+
+/* ─── STEP3-ii: 動機の順位づけ（G3）────────── */
+function renderStep3ii() {
+  const g3 = ITEMS.find(it => it.kind === 'ranking');
+  if (!g3) { goNext(); return; }
+  if (!state.g3order) state.g3order = g3.drivers.map(d => d.id);
+  const driverById = id => g3.drivers.find(d => d.id === id);
+
+  root.innerHTML =
+    phaseHead('STEP 3 / 3 ─ 順位（2/2）', '動機の優先順位', '', null) +
+    `<div class="qcard"><div class="q-item">
+      <div class="q-text">${g3.q}</div>
+      ${rankListHtml(state.g3order, id => {
+        const d = driverById(id); return { label: d.label, desc: d.desc };
+      })}
+      <div class="tie-note" style="margin-top:12px;margin-bottom:0">▲▼ で並べ替え。一番上が「最も大事」です。</div>
+    </div></div>` +
+    navHtml('回答を確定する', true);
+
+  bindRankMoves(state.g3order, renderStep3ii);
+  bindNav(goNext, () => null);
+}
+
+/* ============================================================
+   rawResponse の組み立て・保存
+   ============================================================ */
+function buildRawResponse() {
+  const groups = computeTieGroups();
+  const rankOf = {};
+  groups.forEach(g => {
+    tieOrderFor(g).forEach((id, i) => { rankOf[id] = i + 1; });
+  });
+
+  const answers = {};
+  ITEMS.forEach(item => {
+    const a = { strength: state.strength[item.id] };
+    if (item.kind === 'ranking') {
+      a.ranking = state.g3order ? state.g3order.slice() : item.drivers.map(d => d.id);
+    } else if (item.kind === 'intensity') {
+      a.direction = 'neutral';
+    } else {
+      a.direction = scaleToDir(state.direction[item.id]);
+    }
+    if (rankOf[item.id] != null) a.tiebreakRank = rankOf[item.id];
+    answers[item.id] = a;
+  });
+
+  return {
+    respondentId: 'emp_' + Date.now().toString(36),
+    name: state.respondent.name,
+    jobType: state.respondent.jobType,
+    rank: state.respondent.rank,
+    answeredAt: new Date().toISOString(),
+    tier: MAX_TIER,
+    answers,
+  };
+}
+
+/* 回答を Supabase へ保存する。survey_submit がトークンを検証し、
+   responses への登録と受検依頼の完了化までを一括で行う。 */
+async function submitToSupabase(resp) {
+  if (!sb) return { ok: false, message: 'network' };
+  try {
+    const { data, error } = await sb.rpc('survey_submit', {
+      p_token: SURVEY_TOKEN, p_answers: resp,
+    });
+    if (error) return { ok: false, message: error.message || '' };
+    return { ok: true, data: data };
+  } catch (e) {
+    return { ok: false, message: 'network' };
+  }
+}
+
+/* ─── 完了画面 ─────────────────────────── */
+function renderDone() {
+  const resp = state.lastResp || buildRawResponse();
+  const total = ITEMS.length;
+  const importantCount = ITEMS.filter(it => {
+    const a = resp.answers[it.id];
+    return a && a.strength != null && a.strength >= 5;
+  }).length;
+  const idLine = [resp.jobType, resp.rank].filter(Boolean).join('・') || '—';
+  root.innerHTML = `
+    <div class="card">
+      <div class="done-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="done-title">回答ありがとうございました</div>
+      <div class="done-sub">${state.respondent.name} さんの回答を受け付けました。この画面は閉じていただいて構いません。</div>
+      <div class="save-status ok">✓ 回答を送信しました。</div>
+      <div class="summary-grid">
+        <span class="k">回答者</span><span class="v">${idLine}</span>
+        <span class="k">問診範囲</span><span class="v">${total}項目</span>
+        <span class="k">「重要」と回答（強度5以上）</span><span class="v">${importantCount} / ${total} 項目</span>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   送信フロー・ゲート画面・起動
+   ============================================================ */
+async function submitFlow() {
+  state.screen = 'submitting';
+  render(); window.scrollTo(0, 0);
+  const resp = buildRawResponse();
+  const res = await submitToSupabase(resp);
+  if (res.ok || /already_completed/.test(res.message || '')) {
+    state.lastResp = resp;
+    state.screen = 'done';
+  } else {
+    state.submitError = res.message || '';
+    state.screen = 'submit-error';
+  }
+  render(); window.scrollTo(0, 0);
+}
+
+function renderSubmitting() {
+  root.innerHTML = `
+    <div class="card" style="text-align:center">
+      <div class="done-title">回答を送信しています…</div>
+      <div class="done-sub">画面を閉じずに、少しお待ちください。</div>
+    </div>`;
+}
+
+function renderSubmitError() {
+  root.innerHTML = `
+    <div class="card">
+      <div class="done-title">送信に失敗しました</div>
+      <div class="done-sub">通信状態をご確認のうえ、もう一度お試しください。回答内容は保持されています。</div>
+      <div class="save-status warn">電波の良い場所で「もう一度送信する」を押してください。</div>
+      <div class="nav"><button class="btn btn-next" id="retryBtn">もう一度送信する</button></div>
+    </div>`;
+  document.getElementById('retryBtn').onclick = () => submitFlow();
+}
+
+/* トークン照会前／不正トークン時のゲート画面 */
+function renderGate(kind) {
+  const M = {
+    'no-token':  { t:'リンクが必要です',
+      m:'このページは、人事担当者から届いた受検依頼リンクから開いてください。', reload:false },
+    'invalid':   { t:'リンクが無効です',
+      m:'リンクが正しくないか、無効になっています。お手数ですが人事担当者にご確認ください。', reload:false },
+    'expired':   { t:'回答期限が過ぎています',
+      m:'この問診の回答期限が過ぎています。人事担当者にご連絡ください。', reload:false },
+    'completed': { t:'回答済みです',
+      m:'この問診はすでに回答が完了しています。ご協力ありがとうございました。', reload:false },
+    'network':   { t:'接続できませんでした',
+      m:'通信に失敗しました。電波の良い場所で、ページを再読み込みしてください。', reload:true },
+  };
+  const x = M[kind] || M['network'];
+  const pt = document.getElementById('progressText');
+  const pc = document.getElementById('progressCount');
+  const pf = document.getElementById('progressFill');
+  if (pt) pt.textContent = '';
+  if (pc) pc.textContent = '';
+  if (pf) pf.style.width = '0%';
+  root.innerHTML = `
+    <div class="card">
+      <div class="done-title">${x.t}</div>
+      <div class="done-sub">${x.m}</div>
+      ${x.reload ? '<div class="nav"><button class="btn btn-next" id="reloadBtn">再読み込み</button></div>' : ''}
+    </div>`;
+  if (x.reload) {
+    document.getElementById('reloadBtn').onclick = () => location.reload();
+  }
+}
+
+/* 起動 ─ トークンを照会してから問診を表示する */
+async function boot() {
+  if (!sb) { renderGate('network'); return; }
+  if (!SURVEY_TOKEN) { renderGate('no-token'); return; }
+  let data, error;
+  try {
+    ({ data, error } = await sb.rpc('survey_lookup', { p_token: SURVEY_TOKEN }));
+  } catch (e) {
+    renderGate('network'); return;
+  }
+  if (error) {
+    const m = error.message || '';
+    if (/already_completed/.test(m)) renderGate('completed');
+    else if (/expired/.test(m)) renderGate('expired');
+    else if (/invalid_token/.test(m)) renderGate('invalid');
+    else renderGate('network');
+    return;
+  }
+  if (!data) { renderGate('invalid'); return; }
+  applyConfig({ companyName: data.companyName, enabledItems: data.enabledItems });
+  state.respondent = {
+    name: data.respondentName || '',
+    jobType: data.jobType || '',
+    rank: data.rank || '',
+  };
+  state.screen = 'intro';
+  render();
+}
+boot();
+</script>
+
+</body>
+</html>
