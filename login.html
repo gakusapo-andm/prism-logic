@@ -100,7 +100,7 @@ async function checkSession(){
   if (!sb){ showErr('接続に失敗しました。ページを再読み込みしてください。'); return; }
   try {
     const { data:{ session } } = await sb.auth.getSession();
-    if (session) location.replace('requests.html');
+    if (session) location.replace('platform.html');
   } catch (e) {}
 }
 
@@ -120,7 +120,7 @@ async function login(){
       btn.disabled = false; btn.textContent = 'ログイン';
       return;
     }
-    location.replace('requests.html');
+    location.replace('platform.html');
   } catch (e) {
     showErr('接続に失敗しました。通信環境をご確認ください。');
     btn.disabled = false; btn.textContent = 'ログイン';
