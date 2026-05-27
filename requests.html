@@ -211,7 +211,8 @@ async function loadCompanies(){
   else if (companies.length === 1) scoped = companies[0].id;
   if (scoped){
     const bar = document.querySelector('.bar');
-    if (bar) bar.hidden = true;            /* 企業が確定 → セレクタは出さない */
+    /* .bar は display:flex のため hidden 属性では消えない。inline style で確実に隠す。 */
+    if (bar) bar.style.display = 'none';   /* 企業が確定 → セレクタは出さない */
     currentCompanyId = scoped;
   } else {
     sel.innerHTML = companies.map(c =>
