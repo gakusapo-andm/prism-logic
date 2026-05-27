@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRISM LOGIC ─ 当社管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f5f7; --white:#fff; --soft:#ebedf0; --border:#e6e8ec;
+  --border-strong:#d6d9df; --text:#1d1e22; --text2:#6c6e75; --dim:#a7a9b0;
+  --accent:#16a34a; --accent-soft:rgba(22,163,74,.12); --btn:#1f2024;
+  --red:#dc2626; --red-soft:rgba(220,38,38,.09); --blue:#2563eb;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{ font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--text); }
+.app{ max-width:920px; margin:0 auto; padding:0 20px 60px; }
+header{
+  display:flex; align-items:center; gap:12px; padding:16px 0;
+  border-bottom:1px solid var(--border); margin-bottom:24px; flex-wrap:wrap;
+}
+.logo{ display:flex; align-items:center; gap:8px; }
+.prism-icon{ width:28px; height:28px; }
+.logo-text{
+  font-size:16px; font-weight:700; letter-spacing:.5px;
+  background:linear-gradient(135deg,#3b82f6,#22c55e,#ef4444);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+}
+.tag{
+  font-size:11px; font-weight:700; color:var(--accent);
+  background:var(--accent-soft); padding:3px 10px; border-radius:20px;
+}
+.spacer{ flex:1; }
+.user{ font-size:12px; color:var(--text2); }
+.btn-ghost{
+  font-size:12px; font-family:inherit; padding:7px 12px; background:var(--white);
+  border:1px solid var(--border-strong); border-radius:8px; color:var(--text2); cursor:pointer;
+}
+.note{
+  font-size:12px; color:var(--text2); background:var(--soft);
+  border-radius:9px; padding:10px 13px; margin-bottom:20px;
+}
+.card{
+  background:var(--white); border:1px solid var(--border);
+  border-radius:12px; padding:20px 22px; margin-bottom:20px;
+}
+.card h2{ font-size:14px; font-weight:700; margin-bottom:14px; }
+.addrow{ display:flex; gap:10px; flex-wrap:wrap; }
+.addrow input{
+  flex:1; min-width:220px; font-family:inherit; font-size:13.5px; padding:9px 11px;
+  border:1px solid var(--border-strong); border-radius:8px;
+  background:var(--white); color:var(--text);
+}
+.addrow input:focus{ outline:none; border-color:var(--accent); }
+.btn{
+  font-family:inherit; font-size:13px; font-weight:700; padding:10px 18px; color:#fff;
+  background:var(--btn); border:0; border-radius:8px; cursor:pointer;
+}
+.btn:disabled{ opacity:.55; cursor:default; }
+.muted{ font-size:11.5px; color:var(--dim); margin-top:10px; }
+.msg{ font-size:12.5px; padding:10px 12px; border-radius:8px; margin-bottom:14px; }
+.msg.err{ background:var(--red-soft); color:var(--red); }
+.msg.ok{ background:var(--accent-soft); color:var(--accent); }
+.tablewrap{ overflow-x:auto; }
+table{ width:100%; border-collapse:collapse; font-size:13px; }
+th{
+  text-align:left; font-size:11px; font-weight:600; color:var(--text2);
+  padding:8px 10px; border-bottom:1px solid var(--border-strong); white-space:nowrap;
+}
+td{ padding:11px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr:last-child td{ border-bottom:0; }
+.cid{
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px;
+  color:var(--text2); word-break:break-all;
+}
+.actions{ display:flex; gap:6px; flex-wrap:wrap; white-space:normal; }
+.btn-sm{
+  font-family:inherit; font-size:11.5px; font-weight:600; padding:6px 11px;
+  background:var(--btn); color:#fff; border:0; border-radius:7px; cursor:pointer;
+}
+.btn-sm.ghost{
+  background:var(--white); color:var(--text2); border:1px solid var(--border-strong);
+}
+.btn-sm.danger{
+  background:var(--white); color:var(--red); border:1px solid rgba(220,38,38,.4);
+}
+.copy-btn{
+  font-family:inherit; font-size:11px; padding:4px 9px; background:var(--white);
+  border:1px solid var(--border-strong); border-radius:6px; color:var(--text2); cursor:pointer;
+}
+.empty{ text-align:center; color:var(--dim); font-size:13px; padding:26px 0; }
+.center{ text-align:center; color:var(--text2); font-size:13px; padding:40px 0; }
+@media (max-width:560px){ .addrow input{ min-width:0; } }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">
+      <svg class="prism-icon" viewBox="0 0 36 36" aria-hidden="true">
+        <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#3b82f6"/><stop offset="50%" stop-color="#22c55e"/>
+          <stop offset="100%" stop-color="#ef4444"/></linearGradient></defs>
+        <polygon points="18,3 33,31 3,31" fill="none" stroke="url(#g)" stroke-width="2.4"/>
+      </svg>
+      <span class="logo-text">PRISM LOGIC</span>
+    </div>
+    <span class="tag">当社管理</span>
+    <div class="spacer"></div>
+    <span class="user" id="userEmail"></span>
+    <button class="btn-ghost" id="logoutBtn">ログアウト</button>
+  </header>
+
+  <div id="loading" class="center">読み込み中…</div>
+
+  <main id="main" hidden>
+    <p class="note">
+      採用担当者アカウント（ログイン・パスワード）の管理は、次フェーズで本画面に追加されます。
+      現フェーズでは企業の登録・管理を行います。
+    </p>
+
+    <section class="card">
+      <h2>企業を新規追加</h2>
+      <div id="addMsg"></div>
+      <div class="addrow">
+        <input type="text" id="newName" placeholder="企業名（例：中部精密工業株式会社）">
+        <button class="btn" id="addBtn">追加</button>
+      </div>
+      <p class="muted">
+        職種・役職・出題項目などの詳細設定は、追加後に各企業の
+        「設定・ペルソナ設計を開く」から行います。
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>企業一覧</h2>
+      <div id="listArea"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ntsqmhcyvopnsxdhtwzj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_e6kLk_fC9OIiaMhiiqKjXA_pFE1KKc1';
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+const $ = id => document.getElementById(id);
+let companies = [];
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"]/g,
+    c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+}
+
+/* ── 起動 ──────────────────────────────────────────────────────────
+   セッション確認 → スタッフ判定。スタッフ以外は当社管理画面に入れない。
+   権限確認が失敗した場合はリダイレクトせずエラー表示（誤転送・ループ防止）。*/
+async function init(){
+  if (!sb){ $('loading').textContent = '接続に失敗しました。ページを再読み込みしてください。'; return; }
+
+  let session = null;
+  try { const r = await sb.auth.getSession(); session = r.data.session; } catch (e) {}
+  if (!session){ location.replace('login.html'); return; }
+
+  let staff = false, staffKnown = false;
+  try {
+    const { data, error } = await sb.rpc('is_staff');
+    if (!error){ staff = (data === true); staffKnown = true; }
+  } catch (e) {}
+  if (staffKnown && !staff){ location.replace('platform.html'); return; }
+  if (!staffKnown){
+    $('loading').textContent = '権限の確認に失敗しました。ページを再読み込みしてください。';
+    return;
+  }
+
+  $('userEmail').textContent = (session.user && session.user.email) || '';
+  $('logoutBtn').onclick = logout;
+  $('addBtn').onclick = addCompany;
+  $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') addCompany(); });
+
+  await loadCompanies();
+  $('loading').hidden = true;
+  $('main').hidden = false;
+}
+
+async function logout(){
+  try { await sb.auth.signOut(); } catch (e) {}
+  location.replace('login.html');
+}
+
+async function loadCompanies(){
+  const { data, error } = await sb.from('companies').select('*').order('name');
+  if (error){
+    $('listArea').innerHTML =
+      '<div class="msg err">企業一覧の取得に失敗しました：' + esc(error.message) + '</div>';
+    return;
+  }
+  companies = data || [];
+  render();
+}
+
+function render(){
+  const area = $('listArea');
+  if (!companies.length){
+    area.innerHTML =
+      '<div class="empty">まだ企業が登録されていません。上のフォームから追加してください。</div>';
+    return;
+  }
+  let h = '<div class="tablewrap"><table><thead><tr>'
+    + '<th>企業名</th><th>企業ID</th><th>操作</th>'
+    + '</tr></thead><tbody>';
+  companies.forEach(c => {
+    h += '<tr>'
+      + '<td>' + esc(c.name) + '</td>'
+      + '<td><span class="cid">' + esc(c.id) + '</span> '
+      +   '<button class="copy-btn" data-copy="' + esc(c.id) + '">コピー</button></td>'
+      + '<td><div class="actions">'
+      +   '<button class="btn-sm" data-open="' + esc(c.id) + '">設定・ペルソナ設計を開く</button>'
+      +   '<button class="btn-sm ghost" data-rename="' + esc(c.id) + '">名称変更</button>'
+      +   '<button class="btn-sm danger" data-del="' + esc(c.id) + '">削除</button>'
+      + '</div></td>'
+      + '</tr>';
+  });
+  h += '</tbody></table></div>';
+  area.innerHTML = h;
+
+  area.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
+    location.href = 'platform.html?company=' + encodeURIComponent(b.dataset.open);
+  });
+  area.querySelectorAll('[data-rename]').forEach(b => b.onclick = () => renameCompany(b.dataset.rename));
+  area.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteCompany(b.dataset.del));
+  area.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy, b));
+}
+
+async function addCompany(){
+  const msg = $('addMsg'); msg.textContent = ''; msg.className = '';
+  const name = $('newName').value.trim();
+  if (!name){ msg.textContent = '企業名を入力してください。'; msg.className = 'msg err'; return; }
+  const btn = $('addBtn'); btn.disabled = true; btn.textContent = '追加中…';
+  const { error } = await sb.from('companies').insert({
+    name: name, job_types: [], ranks: [], enabled_items: [], custom_groups: []
+  });
+  btn.disabled = false; btn.textContent = '追加';
+  if (error){ msg.textContent = '追加に失敗しました：' + error.message; msg.className = 'msg err'; return; }
+  msg.textContent = '✓ 企業「' + name + '」を追加しました。'; msg.className = 'msg ok';
+  $('newName').value = '';
+  await loadCompanies();
+}
+
+async function renameCompany(id){
+  const c = companies.find(x => x.id === id);
+  if (!c) return;
+  const name = prompt('新しい企業名を入力してください。', c.name);
+  if (name === null) return;
+  const t = name.trim();
+  if (!t){ alert('企業名は空にできません。'); return; }
+  if (t === c.name) return;
+  const { error } = await sb.from('companies').update({ name: t }).eq('id', id);
+  if (error){ alert('名称変更に失敗しました：' + error.message); return; }
+  await loadCompanies();
+}
+
+async function deleteCompany(id){
+  const c = companies.find(x => x.id === id);
+  if (!c) return;
+  const typed = prompt(
+    '企業「' + c.name + '」を削除します。\n'
+    + 'この企業の受検依頼・回答・ペルソナもすべて完全に削除され、元に戻せません。\n\n'
+    + '実行するには、企業名を正確に入力してください。');
+  if (typed === null) return;
+  if (typed.trim() !== c.name){ alert('企業名が一致しません。削除を中止しました。'); return; }
+  const { error } = await sb.from('companies').delete().eq('id', id);
+  if (error){ alert('削除に失敗しました：' + error.message); return; }
+  await loadCompanies();
+}
+
+function copyText(text, btn){
+  const done = () => {
+    const o = btn.textContent;
+    btn.textContent = 'コピー済み';
+    setTimeout(() => { btn.textContent = o; }, 1400);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+init();
+</script>
+</body>
+</html>
