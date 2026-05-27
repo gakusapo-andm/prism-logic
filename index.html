@@ -499,7 +499,7 @@ const ITEMS_MASTER = [
     poleA:{label:'共生型', desc:'周囲と調和し、支え合う関わり方'},
     poleB:{label:'触発型', desc:'刺激し合い、高め合う関わり方'} },
   { id:'H4', cat:'heart', name:'ユーモア', kind:'binary',
-    q:'ユーモアやウィットは、この仕事で重要だと思いますか？',
+    q:'ユーモアや気の利いた一言は、この仕事で重要だと思いますか？',
     poleA:{label:'親和型', desc:'ユーモアで場を和ませ、関係をなめらかにする'},
     poleB:{label:'着想型', desc:'ユーモアで見方をずらし、発想のきっかけをつくる'} },
   { id:'H5', cat:'heart', name:'自己開示', kind:'binary',
@@ -978,6 +978,12 @@ function rankListHtml(order, lookup) {
       </div>`;
   }).join('') + `</div>`;
 }
+/* 順位づけ（STEP3-i）用の一行説明。各項目の設問文から末尾の問いかけを取り除いて導く。 */
+function itemTieDesc(it) {
+  const src = (it.kind === 'ranking' ? it.qStrength : it.q) || '';
+  const d = src.replace(/は、?(?:この仕事で|管理職にとって)?重要だと思いますか？\s*$/, '').trim();
+  return d || null;
+}
 function bindRankMoves(order, rerender) {
   document.querySelectorAll('.rank-move').forEach(btn => {
     btn.onclick = () => {
@@ -1005,7 +1011,7 @@ function renderStep3i() {
           そのなかでも「より大事だと思う順」に並べ替えてください。</div>
         ${rankListHtml(order, id => {
           const it = itemById(id);
-          return { rid: it.id, label: it.name, desc: null };
+          return { rid: it.id, label: it.name, desc: itemTieDesc(it) };
         })}
       </div>`;
   }).join('');
