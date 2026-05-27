@@ -48,9 +48,13 @@ header{
   border-radius:12px; padding:20px 22px; margin-bottom:20px;
 }
 .card h2{ font-size:14px; font-weight:700; margin-bottom:14px; }
+.acc-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.acc-head h2{ margin-bottom:0; }
+.acc-add{ margin-top:18px; border-top:1px solid var(--border); padding-top:16px; }
+.acc-add h3{ font-size:12.5px; font-weight:700; margin-bottom:10px; }
 .addrow{ display:flex; gap:10px; flex-wrap:wrap; }
 .addrow input{
-  flex:1; min-width:220px; font-family:inherit; font-size:13.5px; padding:9px 11px;
+  flex:1; min-width:200px; font-family:inherit; font-size:13.5px; padding:9px 11px;
   border:1px solid var(--border-strong); border-radius:8px;
   background:var(--white); color:var(--text);
 }
@@ -61,6 +65,7 @@ header{
 }
 .btn:disabled{ opacity:.55; cursor:default; }
 .muted{ font-size:11.5px; color:var(--dim); margin-top:10px; }
+.muted2{ font-size:11.5px; color:var(--dim); }
 .msg{ font-size:12.5px; padding:10px 12px; border-radius:8px; margin-bottom:14px; }
 .msg.err{ background:var(--red-soft); color:var(--red); }
 .msg.ok{ background:var(--accent-soft); color:var(--accent); }
@@ -119,8 +124,9 @@ tr:last-child td{ border-bottom:0; }
 
   <main id="main" hidden>
     <p class="note">
-      採用担当者アカウント（ログイン・パスワード）の管理は、次フェーズで本画面に追加されます。
-      現フェーズでは企業の登録・管理を行います。
+      企業の登録・管理と、各企業の採用担当者アカウント（ログイン・パスワード）の
+      発行・管理を行います。アカウント操作にはサーバー関数（Edge Function）の
+      デプロイが必要です。
     </p>
 
     <section class="card">
@@ -140,6 +146,27 @@ tr:last-child td{ border-bottom:0; }
       <h2>企業一覧</h2>
       <div id="listArea"></div>
     </section>
+
+    <section class="card" id="accCard" hidden>
+      <div class="acc-head">
+        <h2 id="accTitle">採用担当者アカウント</h2>
+        <button class="btn-ghost" id="accClose">閉じる</button>
+      </div>
+      <div id="accMsg"></div>
+      <div id="accList"></div>
+      <div class="acc-add">
+        <h3>アカウントを新規発行</h3>
+        <div class="addrow">
+          <input type="email" id="accEmail" placeholder="メールアドレス" autocomplete="off">
+          <input type="text" id="accPw" placeholder="初期パスワード（8文字以上）" autocomplete="off">
+          <button class="btn" id="accAddBtn">発行</button>
+        </div>
+        <p class="muted">
+          発行後、このメールアドレスとパスワードでクライアントがログインできます。
+          パスワードは後から再設定できますが、表示はできません。
+        </p>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -147,18 +174,25 @@ tr:last-child td{ border-bottom:0; }
 const SUPABASE_URL = 'https://ntsqmhcyvopnsxdhtwzj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_e6kLk_fC9OIiaMhiiqKjXA_pFE1KKc1';
 const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const FN_URL = SUPABASE_URL + '/functions/v1/manage-accounts';
 
 const $ = id => document.getElementById(id);
 let companies = [];
+let accCompanyId = null;
 
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"]/g,
     c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 }
+function fmtDate(iso){
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  const p = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'/'+p(d.getMonth()+1)+'/'+p(d.getDate());
+}
 
-/* ── 起動 ──────────────────────────────────────────────────────────
-   セッション確認 → スタッフ判定。スタッフ以外は当社管理画面に入れない。
-   権限確認が失敗した場合はリダイレクトせずエラー表示（誤転送・ループ防止）。*/
+/* ── 起動 ─ セッション＋スタッフ判定 ───────────────────────────────── */
 async function init(){
   if (!sb){ $('loading').textContent = '接続に失敗しました。ページを再読み込みしてください。'; return; }
 
@@ -181,6 +215,8 @@ async function init(){
   $('logoutBtn').onclick = logout;
   $('addBtn').onclick = addCompany;
   $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') addCompany(); });
+  $('accClose').onclick = closeAccounts;
+  $('accAddBtn').onclick = addAccount;
 
   await loadCompanies();
   $('loading').hidden = true;
@@ -192,6 +228,7 @@ async function logout(){
   location.replace('login.html');
 }
 
+/* ── 企業管理 ───────────────────────────────────────────────────── */
 async function loadCompanies(){
   const { data, error } = await sb.from('companies').select('*').order('name');
   if (error){
@@ -220,6 +257,7 @@ function render(){
       +   '<button class="copy-btn" data-copy="' + esc(c.id) + '">コピー</button></td>'
       + '<td><div class="actions">'
       +   '<button class="btn-sm" data-open="' + esc(c.id) + '">設定・ペルソナ設計を開く</button>'
+      +   '<button class="btn-sm ghost" data-acc="' + esc(c.id) + '">担当者アカウント</button>'
       +   '<button class="btn-sm ghost" data-rename="' + esc(c.id) + '">名称変更</button>'
       +   '<button class="btn-sm danger" data-del="' + esc(c.id) + '">削除</button>'
       + '</div></td>'
@@ -231,6 +269,7 @@ function render(){
   area.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
     location.href = 'platform.html?company=' + encodeURIComponent(b.dataset.open);
   });
+  area.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => openAccounts(b.dataset.acc));
   area.querySelectorAll('[data-rename]').forEach(b => b.onclick = () => renameCompany(b.dataset.rename));
   area.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteCompany(b.dataset.del));
   area.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy, b));
@@ -275,9 +314,136 @@ async function deleteCompany(id){
   if (typed.trim() !== c.name){ alert('企業名が一致しません。削除を中止しました。'); return; }
   const { error } = await sb.from('companies').delete().eq('id', id);
   if (error){ alert('削除に失敗しました：' + error.message); return; }
+  if (accCompanyId === id) closeAccounts();
   await loadCompanies();
 }
 
+/* ── 採用担当者アカウント管理（Edge Function 経由）───────────────────── */
+async function callFn(action, payload){
+  let session = null;
+  try { const r = await sb.auth.getSession(); session = r.data.session; } catch (e) {}
+  if (!session){ throw new Error('セッションが切れています。再ログインしてください。'); }
+  const res = await fetch(FN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + session.access_token,
+      'apikey': SUPABASE_KEY,
+    },
+    body: JSON.stringify(Object.assign({ action: action }, payload)),
+  });
+  let j = {};
+  try { j = await res.json(); } catch (e) {}
+  if (!res.ok){ throw new Error(j.error || ('サーバーエラー (' + res.status + ')')); }
+  return j;
+}
+
+async function openAccounts(companyId){
+  const c = companies.find(x => x.id === companyId);
+  if (!c) return;
+  accCompanyId = companyId;
+  $('accTitle').textContent = '「' + c.name + '」の採用担当者アカウント';
+  $('accCard').hidden = false;
+  $('accMsg').textContent = ''; $('accMsg').className = '';
+  $('accEmail').value = ''; $('accPw').value = '';
+  $('accList').innerHTML = '<div class="center">読み込み中…</div>';
+  $('accCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  await loadAccounts();
+}
+
+async function loadAccounts(){
+  try {
+    const r = await callFn('list', { company_id: accCompanyId });
+    renderAccounts(r.accounts || []);
+  } catch (e) {
+    $('accList').innerHTML =
+      '<div class="msg err">' + esc(e.message) + '</div>'
+      + '<div class="muted">アカウント機能のサーバー関数（Edge Function "manage-accounts"）が'
+      + 'まだデプロイされていない可能性があります。</div>';
+  }
+}
+
+function renderAccounts(list){
+  if (!list.length){
+    $('accList').innerHTML =
+      '<div class="empty">まだアカウントがありません。下のフォームから発行してください。</div>';
+    return;
+  }
+  let h = '<div class="tablewrap"><table><thead><tr>'
+    + '<th>メールアドレス</th><th>発行日</th><th>操作</th>'
+    + '</tr></thead><tbody>';
+  list.forEach(a => {
+    h += '<tr>'
+      + '<td>' + esc(a.email) + '</td>'
+      + '<td class="muted2">' + esc(fmtDate(a.created_at)) + '</td>'
+      + '<td><div class="actions">'
+      +   '<button class="btn-sm ghost" data-rpw="' + esc(a.user_id) + '" '
+      +     'data-email="' + esc(a.email) + '">パスワード再設定</button>'
+      +   '<button class="btn-sm danger" data-rm="' + esc(a.user_id) + '" '
+      +     'data-email="' + esc(a.email) + '">削除</button>'
+      + '</div></td>'
+      + '</tr>';
+  });
+  h += '</tbody></table></div>';
+  $('accList').innerHTML = h;
+  $('accList').querySelectorAll('[data-rpw]').forEach(b =>
+    b.onclick = () => resetPassword(b.dataset.rpw, b.dataset.email));
+  $('accList').querySelectorAll('[data-rm]').forEach(b =>
+    b.onclick = () => removeAccount(b.dataset.rm, b.dataset.email));
+}
+
+async function addAccount(){
+  const msg = $('accMsg'); msg.textContent = ''; msg.className = '';
+  const email = $('accEmail').value.trim();
+  const pw = $('accPw').value;
+  if (!email || !pw){
+    msg.textContent = 'メールアドレスとパスワードを入力してください。'; msg.className = 'msg err'; return;
+  }
+  if (pw.length < 8){
+    msg.textContent = 'パスワードは8文字以上にしてください。'; msg.className = 'msg err'; return;
+  }
+  const btn = $('accAddBtn'); btn.disabled = true; btn.textContent = '発行中…';
+  try {
+    await callFn('create', { email: email, password: pw, company_id: accCompanyId });
+    msg.textContent = '✓ アカウント「' + email + '」を発行しました。'; msg.className = 'msg ok';
+    $('accEmail').value = ''; $('accPw').value = '';
+    await loadAccounts();
+  } catch (e) {
+    msg.textContent = '発行に失敗しました：' + e.message; msg.className = 'msg err';
+  }
+  btn.disabled = false; btn.textContent = '発行';
+}
+
+async function resetPassword(userId, email){
+  const pw = prompt('「' + email + '」の新しいパスワードを入力してください。\n'
+    + '（8文字以上。設定後この画面では表示できません）');
+  if (pw === null) return;
+  if (pw.length < 8){ alert('パスワードは8文字以上にしてください。'); return; }
+  try {
+    await callFn('reset_password', { user_id: userId, password: pw });
+    alert('✓ パスワードを再設定しました。');
+  } catch (e) {
+    alert('再設定に失敗しました：' + e.message);
+  }
+}
+
+async function removeAccount(userId, email){
+  if (!confirm('アカウント「' + email + '」を削除します。\n'
+    + 'このログインは使用できなくなります。よろしいですか？')) return;
+  try {
+    await callFn('remove', { user_id: userId });
+    await loadAccounts();
+  } catch (e) {
+    alert('削除に失敗しました：' + e.message);
+  }
+}
+
+function closeAccounts(){
+  $('accCard').hidden = true;
+  accCompanyId = null;
+}
+
+/* ── コピー ───────────────────────────────────────────────────────── */
 function copyText(text, btn){
   const done = () => {
     const o = btn.textContent;
