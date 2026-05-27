@@ -301,7 +301,7 @@ body {
 
 <div class="layout">
   <aside class="sidebar">
-    <div class="co"><select id="companySelect" class="co-select"><option>読み込み中…</option></select></div>
+    <div class="co" id="companyLabel">読み込み中…</div>
     <nav>
       <button class="nav-item active" data-page="home" onclick="showPage('home')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1z"/></svg>
@@ -486,7 +486,11 @@ function showPage(name, force) {
   if (isFrame) loadModule(name, force);
   if (isRequests) {
     var rf = document.getElementById('requestsFrame');
-    if (rf && !rf.getAttribute('src')) rf.setAttribute('src', 'requests.html');
+    if (rf && !rf.getAttribute('src')) {
+      var ru = 'requests.html';
+      if (currentCompanyId) ru += '?company=' + encodeURIComponent(currentCompanyId);
+      rf.setAttribute('src', ru);
+    }
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -662,34 +666,17 @@ window.addEventListener('storage', function(e) {
 });
 
 /* ── 企業セレクタ変更 ─────────────────────────────────────────────── */
-async function onCompanyChange(newId) {
-  if (!newId || newId === currentCompanyId) return;
-  showOverlay('企業データを読み込み中…');
-  appReady = false;
-  currentCompanyId = newId;
-  try {
-    /* 前企業のペルソナをローカルに残さない（表示・同期の混在を防ぐ）*/
-    localStorage.removeItem('prism_persona_results');
-    await hydrate(newId);
-    /* 表示中のモジュールページを再注入し、ハイドレート後の値を読み直させる */
-    var visible = document.querySelector('.page:not([hidden])');
-    if (visible && visible.id && visible.id.indexOf('page-') === 0) {
-      var name = visible.id.slice('page-'.length);
-      if (FRAME_PAGES[name]) loadModule(name, true);
-    }
-    appReady = true;
-  } catch (err) {
-    console.error(err);
-    showOverlay('読み込みに失敗しました。ページを再読み込みしてください。');
-    return;
-  }
-  hideOverlay();
-}
-
-/* ── HTML エスケープ（企業名を option に出す用）──────────────────────── */
-function escHtml(t) {
-  return String(t == null ? '' : t)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/* ── 企業の文脈を解決（selector は廃止）─────────────────────────────
+   ・URL に ?company=<id> があればそれ（スタッフが当社管理画面から開いた場合）
+   ・無ければ memberships から自社を解決（クライアント）
+   ・どちらも無い（スタッフが企業未指定で直接開いた）→ null を返す      */
+async function resolveCompanyId() {
+  var fromUrl = new URLSearchParams(location.search).get('company');
+  if (fromUrl) return fromUrl;
+  var res = await sb.from('memberships').select('company_id');
+  if (res.error) { console.error(res.error); return null; }
+  var rows = res.data || [];
+  return rows.length ? rows[0].company_id : null;
 }
 
 /* ── 起動シーケンス ───────────────────────────────────────────────── */
@@ -725,33 +712,37 @@ async function bootstrap() {
     });
   }
 
-  /* 2) アクセス可能な企業一覧を取得（RLS によりスタッフ＝全社／クライアント＝自社）*/
-  const { data: companies, error } =
-    await sb.from('companies').select('id,name').order('name', { ascending: true });
-  if (error) {
-    console.error(error);
-    showOverlay('企業データの取得に失敗しました。'); return;
+  /* 2) 企業の文脈を解決 */
+  let companyId = null;
+  try { companyId = await resolveCompanyId(); }
+  catch (err) { console.error(err); }
+  if (!companyId) {
+    /* スタッフが企業未指定で開いた場合。リダイレクトループを避け、
+       自動転送せずに当社管理画面への導線を出す。 */
+    var bm = document.getElementById('bootMsg');
+    if (bm) bm.innerHTML =
+      '企業が指定されていません。<br>'
+      + '<a href="admin.html" style="color:var(--accent);font-weight:700;">当社管理画面へ</a>';
+    showOverlay();
+    return;
   }
-  if (!companies || !companies.length) {
-    showOverlay('アクセスできる企業がありません。管理者にお問い合わせください。'); return;
-  }
+  currentCompanyId = companyId;
 
-  /* 3) 企業セレクタを構築 */
-  const sel = document.getElementById('companySelect');
-  sel.innerHTML = companies.map(function(c) {
-    return '<option value="' + escHtml(c.id) + '">' + escHtml(c.name) + '</option>';
-  }).join('');
-  sel.addEventListener('change', function() { onCompanyChange(sel.value); });
-  currentCompanyId = companies[0].id;
-  sel.value = currentCompanyId;
-
-  /* 4) 初回ハイドレート */
+  /* 3) ハイドレート */
   try {
     await hydrate(currentCompanyId);
   } catch (err) {
     console.error(err);
-    showOverlay('企業データの読み込みに失敗しました。'); return;
+    showOverlay('企業データの読み込みに失敗しました。アクセス権をご確認ください。');
+    return;
   }
+
+  /* サイドバーに企業名を表示 */
+  try {
+    var cfg = JSON.parse(localStorage.getItem('prism_company_config') || '{}');
+    var lbl = document.getElementById('companyLabel');
+    if (lbl) lbl.textContent = cfg.companyName || '（企業名なし）';
+  } catch (e) {}
 
   appReady = true;
   hideOverlay();
