@@ -203,9 +203,21 @@ async function loadCompanies(){
     $('listArea').innerHTML = '<div class="empty">アクセスできる企業がありません。担当者にお問い合わせください。</div>';
     return;
   }
-  sel.innerHTML = companies.map(c =>
-    '<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
-  currentCompanyId = companies[0].id;
+  /* 企業の文脈: ?company= 指定があればそれ。無ければ単一企業なら自動確定、
+     複数（スタッフが直接開いた場合）のみセレクタを表示する。 */
+  const paramCompany = new URLSearchParams(location.search).get('company');
+  let scoped = null;
+  if (paramCompany && companies.some(c => c.id === paramCompany)) scoped = paramCompany;
+  else if (companies.length === 1) scoped = companies[0].id;
+  if (scoped){
+    const bar = document.querySelector('.bar');
+    if (bar) bar.hidden = true;            /* 企業が確定 → セレクタは出さない */
+    currentCompanyId = scoped;
+  } else {
+    sel.innerHTML = companies.map(c =>
+      '<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
+    currentCompanyId = companies[0].id;
+  }
   applyCompany();
 }
 
