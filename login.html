@@ -96,11 +96,21 @@ const pwEl = document.getElementById('pw');
 
 function showErr(t){ msg.textContent = t; msg.className = 'msg err'; }
 
+/* スタッフ（is_staff）なら当社管理画面、それ以外（クライアント）は企業側の管理画面へ。 */
+async function routeByRole(){
+  let staff = false;
+  try {
+    const { data, error } = await sb.rpc('is_staff');
+    if (!error) staff = (data === true);
+  } catch (e) {}
+  location.replace(staff ? 'admin.html' : 'platform.html');
+}
+
 async function checkSession(){
   if (!sb){ showErr('接続に失敗しました。ページを再読み込みしてください。'); return; }
   try {
     const { data:{ session } } = await sb.auth.getSession();
-    if (session) location.replace('platform.html');
+    if (session) { await routeByRole(); }
   } catch (e) {}
 }
 
@@ -120,7 +130,8 @@ async function login(){
       btn.disabled = false; btn.textContent = 'ログイン';
       return;
     }
-    location.replace('platform.html');
+    await routeByRole();
+    return;
   } catch (e) {
     showErr('接続に失敗しました。通信環境をご確認ください。');
     btn.disabled = false; btn.textContent = 'ログイン';
