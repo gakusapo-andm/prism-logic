@@ -312,6 +312,10 @@ body {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12,2 22,8 22,16 12,22 2,16 2,8"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="8" x2="22" y2="16"/><line x1="22" y1="8" x2="2" y2="16"/></svg>
         <span>ペルソナ設計</span>
       </button>
+      <button class="nav-item" data-page="requests" onclick="showPage('requests')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="6" r="1.5"/><circle cx="4" cy="12" r="1.5"/><circle cx="4" cy="18" r="1.5"/><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/></svg>
+        <span>受検者一覧</span>
+      </button>
     </nav>
   </aside>
 
@@ -424,6 +428,11 @@ body {
       <iframe class="module-frame" data-mod="mod-admin" title="ペルソナ設計コンソール"></iframe>
     </section>
 
+    <!-- ============ 受検者一覧（本番 requests.html を埋め込み）============ -->
+    <section class="page" id="page-requests" hidden>
+      <iframe class="module-frame" id="requestsFrame" title="受検者一覧"></iframe>
+    </section>
+
     <!-- ============ ペルソナ結果（admin から到達）============ -->
     <section class="page" id="page-results" hidden>
       <iframe class="module-frame" data-mod="mod-results" title="ペルソナ結果"></iframe>
@@ -471,8 +480,14 @@ function showPage(name, force) {
     b.classList.toggle('active', b.dataset.page === navName);
   });
   var isFrame = !!FRAME_PAGES[name];
-  document.querySelector('.main').classList.toggle('flush', isFrame);
+  /* 受検者一覧（requests）は本番 requests.html を src 埋め込み。loadModule は使わない */
+  var isRequests = (name === 'requests');
+  document.querySelector('.main').classList.toggle('flush', isFrame || isRequests);
   if (isFrame) loadModule(name, force);
+  if (isRequests) {
+    var rf = document.getElementById('requestsFrame');
+    if (rf && !rf.getAttribute('src')) rf.setAttribute('src', 'requests.html');
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
