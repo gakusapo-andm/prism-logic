@@ -146,6 +146,8 @@ tr:last-child td{ border-bottom:0; }
           <input type="text" id="fRank" list="rankList" placeholder="任意"></div>
         <div class="f f-full"><label>受検期限（任意）</label>
           <input type="date" id="fExpiry"></div>
+        <div class="f f-full"><label>メールアドレス（任意・自動送信に使用）</label>
+          <input type="email" id="fEmail" placeholder="例：yamada@example.com" autocomplete="off"></div>
       </div>
       <datalist id="jobList"></datalist>
       <datalist id="rankList"></datalist>
@@ -273,7 +275,8 @@ function renderList(rows){
   }
   let h = '<div class="dist-bar">'
     + '<span class="dist-count">全 ' + lastRows.length + ' 件</span>'
-    + '<button class="act-btn primary" id="copyAllBtn">全URLを一括コピー</button>'
+    + '<button class="act-btn primary" id="mailAllBtn">メール一括送信</button>'
+    + '<button class="act-btn" id="copyAllBtn">全URLを一括コピー</button>'
     + '<button class="act-btn" id="csvBtn">CSV書き出し（氏名＋URL）</button>'
     + '</div>';
   h += '<div class="tablewrap"><table><thead><tr>'
@@ -283,12 +286,20 @@ function renderList(rows){
     const st = STATUS[r.status] || STATUS.pending;
     const jr = [r.job_type, r.rank].filter(Boolean).join('・') || '—';
     const url = rowUrl(r);
+    var sendBtn = '';
+    if (r.email) {
+      var sent = !!r.invited_at;
+      sendBtn = '<button class="act-btn mail-send-btn" data-send-i="' + i + '" title="'
+        + esc(r.email) + (sent ? ('（' + fmtDate(r.invited_at) + ' 送信済）') : '') + '">'
+        + (sent ? '✓ 再送' : 'メール送信') + '</button>';
+    }
     h += '<tr>'
       + '<td>' + esc(r.respondent_name) + '</td>'
       + '<td>' + esc(jr) + '</td>'
       + '<td><span class="badge ' + st.c + '">' + st.t + '</span></td>'
       + '<td class="muted">' + fmtDate(r.created_at) + '</td>'
       + '<td><div class="row-acts">'
+      +   sendBtn
       +   '<button class="copy-btn" data-url="' + esc(url) + '">コピー</button>'
       +   '<button class="act-btn mail-btn" data-i="' + i + '">メール下書き</button>'
       +   '<button class="act-btn qr-btn" data-i="' + i + '">QR</button>'
@@ -300,8 +311,10 @@ function renderList(rows){
   area.querySelectorAll('.copy-btn').forEach(b => { b.onclick = () => copyText(b.dataset.url, b); });
   area.querySelectorAll('.mail-btn').forEach(b => { b.onclick = () => openMail(lastRows[+b.dataset.i]); });
   area.querySelectorAll('.qr-btn').forEach(b => { b.onclick = () => openQr(lastRows[+b.dataset.i]); });
+  area.querySelectorAll('.mail-send-btn').forEach(b => { b.onclick = () => sendInvites([lastRows[+b.dataset.sendI].id], b); });
   const ca = $('copyAllBtn'); if (ca) ca.onclick = () => copyAllUrls(ca);
   const cs = $('csvBtn');     if (cs) cs.onclick = () => exportCsv();
+  const ma = $('mailAllBtn'); if (ma) ma.onclick = () => sendAllInvites(ma);
 }
 
 /* [v34-②a] 全URLを一括コピー（氏名 <TAB> URL を1行ずつ）*/
@@ -315,7 +328,10 @@ function copyAllUrls(btn){
 
 /* CSV書き出し（Excel-JP 用に BOM 付き・RFC4180 風エスケープ）*/
 function csvCell(v){
-  const s = String(v == null ? '' : v);
+  let s = String(v == null ? '' : v);
+  /* CSV フォーミュラ・インジェクション対策：式として解釈される先頭文字を無効化。
+     Excel/Sheets は先頭の ' をテキスト指示子として消費するため表示は変わらない。 */
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function buildCsv(){
@@ -387,6 +403,55 @@ function closeQr(){
   qrInstance = null;
 }
 
+/* [v36-②b] 受検URLをメール自動送信（Edge Function "send-invite" 経由）*/
+const SEND_FN_URL = SUPABASE_URL + '/functions/v1/send-invite';
+async function sendInvites(ids, btn){
+  if (!ids || !ids.length) return;
+  let label = null;
+  if (btn){ label = btn.textContent; btn.disabled = true; btn.textContent = '送信中…'; }
+  try {
+    let session = null;
+    try { const r = await sb.auth.getSession(); session = r.data.session; } catch (e) {}
+    if (!session){ alert('セッションが切れています。再ログインしてください。'); return; }
+    const res = await fetch(SEND_FN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_KEY,
+      },
+      body: JSON.stringify({ request_ids: ids, base: SURVEY_BASE }),
+    });
+    let j = {};
+    try { j = await res.json(); } catch (e) {}
+    if (!res.ok){ throw new Error(j.error || ('サーバーエラー (' + res.status + ')')); }
+    const results = j.results || [];
+    const ok = results.filter(x => x.ok);
+    const ng = results.filter(x => !x.ok);
+    if (ng.length){
+      alert(ok.length + ' 件送信しました。' + ng.length + ' 件失敗：\n'
+        + ng.map(f => (f.email || f.id) + ' … ' + (f.error || '不明')).join('\n'));
+    } else {
+      alert(ok.length + ' 件のメールを送信しました。');
+    }
+    await loadRequests();
+  } catch (e) {
+    alert('メール送信に失敗しました：' + e.message
+      + '\n（送信機能のサーバー関数 "send-invite" とメール設定が必要です。EMAIL-SETUP.md を参照してください）');
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = label; }
+  }
+}
+function sendAllInvites(btn){
+  const targets = lastRows.filter(r => r.email);
+  if (!targets.length){
+    alert('メールアドレスが登録された受検者がいません。発行時にメールアドレスを入力してください。'); return;
+  }
+  if (!confirm('メールアドレスが登録された ' + targets.length
+    + ' 名に受検案内メールを送信します。よろしいですか？\n（送信済みの方にも再送されます）')) return;
+  return sendInvites(targets.map(r => r.id), btn);
+}
+
 async function issue(){
   const msg = $('formMsg');
   msg.textContent = ''; msg.className = '';
@@ -401,6 +466,7 @@ async function issue(){
     job_type: $('fJob').value.trim() || null,
     rank: $('fRank').value.trim() || null,
     expires_at: $('fExpiry').value ? ($('fExpiry').value + 'T23:59:59') : null,
+    email: $('fEmail').value.trim() || null,
   };
   const { data, error } = await sb.from('survey_requests').insert(payload).select().single();
   btn.disabled = false; btn.textContent = '発行する';
@@ -415,7 +481,7 @@ async function issue(){
     + '<button class="copy-btn" id="issuedCopy">コピー</button>'
     + '</div></div>';
   $('issuedCopy').onclick = () => copyText(url, $('issuedCopy'));
-  $('fName').value = ''; $('fJob').value = ''; $('fRank').value = ''; $('fExpiry').value = '';
+  $('fName').value = ''; $('fJob').value = ''; $('fRank').value = ''; $('fExpiry').value = ''; $('fEmail').value = '';
   loadRequests();
 }
 
