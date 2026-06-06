@@ -98,12 +98,13 @@ function showErr(t){ msg.textContent = t; msg.className = 'msg err'; }
 
 /* スタッフ（is_staff）なら当社管理画面、それ以外（クライアント）は企業側の管理画面へ。 */
 async function routeByRole(){
-  let staff = false;
   try {
     const { data, error } = await sb.rpc('is_staff');
-    if (!error) staff = (data === true);
-  } catch (e) {}
-  location.replace(staff ? 'admin.html' : 'platform.html');
+    if (error) { showErr('権限の確認に失敗しました。ページを再読み込みして再度お試しください。'); return; }
+    location.replace(data === true ? 'admin.html' : 'platform.html');
+  } catch (e) {
+    showErr('権限の確認に失敗しました。ページを再読み込みして再度お試しください。');
+  }
 }
 
 async function checkSession(){
