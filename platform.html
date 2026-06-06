@@ -820,14 +820,24 @@ async function hydrate(companyId) {
   window.PRISM_CID = companyId || '';   /* [v32] 以降のキャッシュ書込を企業名前空間へ */
   hydrating = true;
   try {
-    const [coRes, respRes, persRes] = await Promise.all([
+    const [coRes, respRes] = await Promise.all([
       sb.from('companies').select('*').eq('id', companyId).single(),
       sb.from('responses').select('answers').eq('company_id', companyId),
-      sb.from('personas').select('meta, persona_id').eq('company_id', companyId)
-        .order('created_at', { ascending: true }),
     ]);
     if (coRes.error)   throw coRes.error;
     if (respRes.error) throw respRes.error;
+
+    /* personas: persona_id 列つきで取得。マイグレーション（prism-personas-upsert.sql）
+       未実行の環境では persona_id 列が無く 400 になるため、その場合は meta のみで
+       再取得し、プラットフォーム全体が落ちないようにする（後方互換・自己回復）。 */
+    let persRes = await sb.from('personas').select('meta, persona_id').eq('company_id', companyId)
+      .order('created_at', { ascending: true });
+    if (persRes.error) {
+      console.warn('[hydrate] personas の persona_id 取得に失敗。meta のみで再取得します'
+        + '（prism-personas-upsert.sql 未実行の可能性）:', persRes.error);
+      persRes = await sb.from('personas').select('meta').eq('company_id', companyId)
+        .order('created_at', { ascending: true });
+    }
     if (persRes.error) throw persRes.error;
 
     /* companies 1行 → prism_company_config */
@@ -1061,7 +1071,20 @@ async function bootstrap() {
     await hydrate(currentCompanyId);
   } catch (err) {
     console.error(err);
-    showOverlay('企業データの読み込みに失敗しました。アクセス権をご確認ください。');
+    /* 自動ログイン→失敗のループに陥らないよう、明示的な「ログインし直す」導線を出す
+       （クリックで signOut＋キャッシュ掃除＝login.html が再リダイレクトしなくなる）。 */
+    var bmE = document.getElementById('bootMsg');
+    if (bmE) bmE.innerHTML =
+      '企業データの読み込みに失敗しました。アクセス権をご確認ください。<br>'
+      + '<a href="#" id="reloginLink" style="color:var(--accent);font-weight:700;">ログインし直す</a>';
+    showOverlay();
+    var rl = document.getElementById('reloginLink');
+    if (rl) rl.onclick = async function(e) {
+      e.preventDefault();
+      try { await sb.auth.signOut(); } catch (_) {}
+      try { clearLocalCache(); } catch (_) {}
+      location.href = 'login.html';
+    };
     return;
   }
 
