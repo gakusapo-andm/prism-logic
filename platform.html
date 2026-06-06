@@ -2835,7 +2835,6 @@ if (typeof module !== 'undefined' && module.exports) {
         enabledItems: S.cfg.enabledItems,
         customGroups: S.cfg.customGroups,
       });
-      persistConfig(S.cfg);
       S.cfgStatus = { type: 'ok', msg: '✓ 設定を保存しました（prism_company_config）。'
         + ' 問診ページ・集計に反映されます。' };
       updateCompanyTag();
@@ -3273,7 +3272,6 @@ if (typeof module !== 'undefined' && module.exports) {
       persona.companyName = S.cfg.companyName;
       PrismStorage.savePersonaResult(persona);
       S.personas = PrismStorage.loadPersonaResults() || [];
-      persistPersonas();
       S.lastResult = persona;
       S.agg.personaName = personaName;
       S.aggStatus = warnings.length
@@ -3425,17 +3423,6 @@ if (typeof module !== 'undefined' && module.exports) {
       </div>`;
   }
 
-  /* [v37-fix] platform 自身による並べ替え・削除・全消しは、自分の localStorage 書き込みでは
-     自分の storage イベントが発火しない（同一ドキュメント）ため write-through が漏れる。
-     これらの編集後は明示的に Supabase 同期を予約する（storage 経由と同じ scheduleSync）。 */
-  function persistPersonas() {
-    scheduleSync('personas', function() { return pushPersonas(S.personas); });
-  }
-  /* [v37-fix] 設定（companies）も同様に、親レルムの保存は明示同期が要る。 */
-  function persistConfig(cfg) {
-    scheduleSync('config', function() { return pushConfig(cfg); });
-  }
-
   function promotePersona(id, openAfter) {
     const idx = S.personas.findIndex(p => p.personaId === id);
     if (idx < 0) return;
@@ -3444,7 +3431,6 @@ if (typeof module !== 'undefined' && module.exports) {
     try {
       localStorage.setItem('prism_persona_results', JSON.stringify(S.personas));
     } catch (e) {}
-    persistPersonas();
     if (openAfter) openExternal('prism-results-v6.html');
     renderPersonas();
   }
@@ -3452,7 +3438,6 @@ if (typeof module !== 'undefined' && module.exports) {
   function deletePersona(id) {
     S.personas = S.personas.filter(p => p.personaId !== id);
     try { localStorage.setItem('prism_persona_results', JSON.stringify(S.personas)); } catch (e) {}
-    persistPersonas();
     if (S.lastResult && S.lastResult.personaId === id) S.lastResult = null;
     renderTabs();
     renderPersonas();
@@ -3614,7 +3599,6 @@ if (typeof module !== 'undefined' && module.exports) {
         try {
           applyManualOverride(persona, arg, newCls, { actor: S.overrideActor, reason: reason });
           localStorage.setItem('prism_persona_results', JSON.stringify(S.personas));
-          persistPersonas();
           S.ovStatus = { type: 'ok',
             msg: '✓ ' + arg + ' の分類を「' + newCls + '」に変更しました（代表者判断・記録済み）。' };
         } catch (e) {
@@ -3626,7 +3610,6 @@ if (typeof module !== 'undefined' && module.exports) {
         if (confirm('保存済みのペルソナをすべて削除します。よろしいですか？')) {
           S.personas = [];
           try { localStorage.setItem('prism_persona_results', JSON.stringify([])); } catch (e) {}
-          persistPersonas();
           S.lastResult = null;
           renderTabs(); renderPersonas();
         }
