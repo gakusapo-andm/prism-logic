@@ -86,9 +86,28 @@ tr:last-child td{ border-bottom:0; }
 .empty{ text-align:center; color:var(--dim); font-size:13px; padding:26px 0; }
 .center{ text-align:center; color:var(--text2); font-size:13px; padding:40px 0; }
 .muted{ font-size:11.5px; color:var(--dim); }
+/* [v34-②a] 配布支援 */
+.dist-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 12px; }
+.dist-bar .dist-count{ font-size:12px; color:var(--text2); margin-right:auto; }
+.act-btn{ font-family:inherit; font-size:11.5px; padding:5px 10px; background:var(--white);
+  border:1px solid var(--border-strong); border-radius:7px; color:var(--text2); cursor:pointer; }
+.act-btn.primary{ background:var(--accent-soft); border-color:rgba(22,163,74,.3); color:var(--accent); font-weight:700; }
+.row-acts{ display:flex; gap:6px; flex-wrap:wrap; }
+.qr-modal{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:none;
+  align-items:center; justify-content:center; z-index:1000; }
+.qr-modal.show{ display:flex; }
+.qr-card{ background:var(--white); border-radius:14px; padding:20px; width:300px; max-width:88vw;
+  text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+.qr-card .qr-name{ font-weight:700; font-size:14px; margin-bottom:4px; }
+.qr-card .qr-sub{ font-size:11px; color:var(--dim); margin-bottom:14px; word-break:break-all; }
+.qr-box{ display:flex; justify-content:center; min-height:200px; align-items:center; }
+.qr-box img, .qr-box canvas{ width:200px !important; height:200px !important; }
 @media (max-width:560px){ .form-grid{ grid-template-columns:1fr; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- [v34-②a] QRコードはクライアント側生成（トークンURLを外部に送らない）。
+     読み込み失敗時は openQr 側でリンク表示にフォールバックする。 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -242,32 +261,130 @@ async function loadRequests(){
   renderList(data || []);
 }
 
+let lastRows = [];
+function rowUrl(r){ return SURVEY_BASE + '?t=' + r.token; }
+
 function renderList(rows){
   const area = $('listArea');
-  if (!rows.length){
+  lastRows = rows || [];
+  if (!lastRows.length){
     area.innerHTML = '<div class="empty">まだ受検依頼はありません。上のフォームから発行してください。</div>';
     return;
   }
-  let h = '<div class="tablewrap"><table><thead><tr>'
-    + '<th>氏名</th><th>職種・役職</th><th>ステータス</th><th>発行日</th><th>受検URL</th>'
+  let h = '<div class="dist-bar">'
+    + '<span class="dist-count">全 ' + lastRows.length + ' 件</span>'
+    + '<button class="act-btn primary" id="copyAllBtn">全URLを一括コピー</button>'
+    + '<button class="act-btn" id="csvBtn">CSV書き出し（氏名＋URL）</button>'
+    + '</div>';
+  h += '<div class="tablewrap"><table><thead><tr>'
+    + '<th>氏名</th><th>職種・役職</th><th>ステータス</th><th>発行日</th><th>配布</th>'
     + '</tr></thead><tbody>';
-  rows.forEach(r => {
+  lastRows.forEach((r, i) => {
     const st = STATUS[r.status] || STATUS.pending;
     const jr = [r.job_type, r.rank].filter(Boolean).join('・') || '—';
-    const url = SURVEY_BASE + '?t=' + r.token;
+    const url = rowUrl(r);
     h += '<tr>'
       + '<td>' + esc(r.respondent_name) + '</td>'
       + '<td>' + esc(jr) + '</td>'
       + '<td><span class="badge ' + st.c + '">' + st.t + '</span></td>'
       + '<td class="muted">' + fmtDate(r.created_at) + '</td>'
-      + '<td><button class="copy-btn" data-url="' + esc(url) + '">URLをコピー</button></td>'
+      + '<td><div class="row-acts">'
+      +   '<button class="copy-btn" data-url="' + esc(url) + '">コピー</button>'
+      +   '<button class="act-btn mail-btn" data-i="' + i + '">メール下書き</button>'
+      +   '<button class="act-btn qr-btn" data-i="' + i + '">QR</button>'
+      + '</div></td>'
       + '</tr>';
   });
   h += '</tbody></table></div>';
   area.innerHTML = h;
-  area.querySelectorAll('.copy-btn').forEach(b => {
-    b.onclick = () => copyText(b.dataset.url, b);
+  area.querySelectorAll('.copy-btn').forEach(b => { b.onclick = () => copyText(b.dataset.url, b); });
+  area.querySelectorAll('.mail-btn').forEach(b => { b.onclick = () => openMail(lastRows[+b.dataset.i]); });
+  area.querySelectorAll('.qr-btn').forEach(b => { b.onclick = () => openQr(lastRows[+b.dataset.i]); });
+  const ca = $('copyAllBtn'); if (ca) ca.onclick = () => copyAllUrls(ca);
+  const cs = $('csvBtn');     if (cs) cs.onclick = () => exportCsv();
+}
+
+/* [v34-②a] 全URLを一括コピー（氏名 <TAB> URL を1行ずつ）*/
+function allUrlsText(){
+  return lastRows.map(r => (r.respondent_name || '') + '\t' + rowUrl(r)).join('\n');
+}
+function copyAllUrls(btn){
+  if (!lastRows.length) return;
+  copyText(allUrlsText(), btn);
+}
+
+/* CSV書き出し（Excel-JP 用に BOM 付き・RFC4180 風エスケープ）*/
+function csvCell(v){
+  const s = String(v == null ? '' : v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function buildCsv(){
+  const head = ['氏名','職種','役職','ステータス','発行日','受検URL'];
+  const lines = [head.map(csvCell).join(',')];
+  lastRows.forEach(r => {
+    const st = (STATUS[r.status] || STATUS.pending).t;
+    lines.push([
+      r.respondent_name, r.job_type || '', r.rank || '', st, fmtDate(r.created_at), rowUrl(r)
+    ].map(csvCell).join(','));
   });
+  return '\uFEFF' + lines.join('\r\n');
+}
+function exportCsv(){
+  if (!lastRows.length) return;
+  const blob = new Blob([buildCsv()], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  const cn = (companies.find(x => x.id === currentCompanyId) || {}).name || 'company';
+  a.href = URL.createObjectURL(blob);
+  a.download = '受検依頼_' + cn + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) {} a.remove(); }, 100);
+}
+
+/* メール下書き（本人のメール宛先は未保有のため宛先は空、本文にURLを入れて起動）*/
+function buildMailto(r){
+  const cn = (companies.find(x => x.id === currentCompanyId) || {}).name || '';
+  const subject = '【受検のお願い】適性問診のご案内';
+  const body = (r.respondent_name || '') + ' 様\n\n'
+    + 'お世話になっております。' + (cn ? (cn + ' の') : '') + '適性問診へのご協力をお願いいたします。\n'
+    + '下記URLを開いてご回答ください（所要 約10分）。\n\n'
+    + rowUrl(r) + '\n\n'
+    + (r.expires_at ? ('回答期限：' + fmtDate(r.expires_at) + '\n\n') : '')
+    + 'よろしくお願いいたします。';
+  return 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+function openMail(r){
+  if (!r) return;
+  window.location.href = buildMailto(r);
+}
+
+/* QRコード表示（クライアント側生成＝トークンを外部に送らない。
+   ライブラリ未読込時はリンク表示にフォールバック）*/
+let qrInstance = null;
+function openQr(r){
+  if (!r) return;
+  const url = rowUrl(r);
+  $('qrName').textContent = (r.respondent_name || '') + ' さん';
+  $('qrSub').textContent = url;
+  const box = $('qrBox');
+  box.innerHTML = '';
+  if (window.QRCode){
+    try {
+      qrInstance = new window.QRCode(box, {
+        text: url, width: 200, height: 200,
+        correctLevel: (window.QRCode.CorrectLevel ? window.QRCode.CorrectLevel.M : undefined)
+      });
+    } catch (e){
+      box.innerHTML = '<div class="muted">QRを生成できませんでした。上のURLをご利用ください。</div>';
+    }
+  } else {
+    box.innerHTML = '<div class="muted">QRライブラリを読み込めませんでした。上のURLをコピーしてご利用ください。</div>';
+  }
+  $('qrModal').classList.add('show');
+}
+function closeQr(){
+  $('qrModal').classList.remove('show');
+  $('qrBox').innerHTML = '';
+  qrInstance = null;
 }
 
 async function issue(){
@@ -324,5 +441,14 @@ function fallbackCopy(text, done){
 
 init();
 </script>
+<!-- [v34-②a] QRコード表示モーダル -->
+<div class="qr-modal" id="qrModal" onclick="if(event.target===this)closeQr()">
+  <div class="qr-card">
+    <div class="qr-name" id="qrName"></div>
+    <div class="qr-sub" id="qrSub"></div>
+    <div class="qr-box" id="qrBox"></div>
+    <button class="act-btn qr-close" onclick="closeQr()" style="margin-top:14px;">閉じる</button>
+  </div>
+</div>
 </body>
 </html>
