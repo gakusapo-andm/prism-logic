@@ -96,6 +96,11 @@ tr:last-child td{ border-bottom:0; }
   font-family:inherit; font-size:11px; padding:4px 9px; background:var(--white);
   border:1px solid var(--border-strong); border-radius:6px; color:var(--text2); cursor:pointer;
 }
+.badge{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:11px; white-space:nowrap; display:inline-block; }
+.badge-green{ background:var(--accent-soft); color:var(--accent); }
+.badge-red{ background:var(--red-soft); color:var(--red); }
+.badge-yellow{ background:rgba(202,138,4,.13); color:#a16207; }
+.badge-gray{ background:var(--soft); color:var(--text2); }
 .empty{ text-align:center; color:var(--dim); font-size:13px; padding:26px 0; }
 .center{ text-align:center; color:var(--text2); font-size:13px; padding:40px 0; }
 @media (max-width:560px){ .addrow input{ min-width:0; } }
@@ -191,6 +196,24 @@ function fmtDate(iso){
   const p = n => String(n).padStart(2,'0');
   return d.getFullYear()+'/'+p(d.getMonth()+1)+'/'+p(d.getDate());
 }
+function fmtDateTime(iso){
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  const p = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'/'+p(d.getMonth()+1)+'/'+p(d.getDate())
+       + ' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+/* アカウントの状態判定。優先度: 一時停止 > メール未確認 > 未ログイン > アクティブ */
+function statusOf(a){
+  if (a.banned_until && new Date(a.banned_until) > new Date())
+    return { suspended:true,  label:'一時停止中', cls:'badge-red' };
+  if (!a.email_confirmed_at)
+    return { suspended:false, label:'メール未確認', cls:'badge-yellow' };
+  if (!a.last_sign_in_at)
+    return { suspended:false, label:'未ログイン',   cls:'badge-gray' };
+  return     { suspended:false, label:'アクティブ',  cls:'badge-green' };
+}
 
 /* ── 起動 ─ セッション＋スタッフ判定 ───────────────────────────────── */
 async function init(){
@@ -224,8 +247,53 @@ async function init(){
 }
 
 async function logout(){
+  /* 同じブラウザを別のユーザーが使うときに前のクライアントの企業データが残らないよう、
+     platform 用のローカルキャッシュも消してからログアウトする。
+     [v32] platform 側でキャッシュは企業IDで名前空間化（<base>__<companyId>）された
+     ため、ベースキーだけでなく全企業ぶん（__付き）を物理キーから走査して消す。 */
+  try {
+    const bases = ['prism_company_config','prism_raw_responses','prism_persona_results'];
+    const kill = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (bases.some(b => key === b || key.indexOf(b + '__') === 0)) kill.push(key);
+    }
+    kill.forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+  } catch (e) {}
   try { await sb.auth.signOut(); } catch (e) {}
   location.replace('login.html');
+}
+
+async function toggleSuspend(userId, email, currentlySuspended){
+  const verb = currentlySuspended ? '再開' : '一時停止';
+  if (!confirm('アカウント「' + email + '」を' + verb + 'しますか？\n'
+    + (currentlySuspended
+        ? '再開するとログインが再び可能になります。'
+        : '一時停止中はそのアカウントでログインできなくなります（削除はされません）。'))) return;
+  try {
+    await callFn('set_suspended', { user_id: userId, suspended: !currentlySuspended });
+    await loadAccounts();
+  } catch (e) {
+    alert(verb + 'に失敗しました：' + e.message);
+  }
+}
+
+async function changeEmail(userId, currentEmail){
+  const newEmail = prompt('「' + currentEmail + '」の新しいメールアドレスを入力してください。\n'
+    + '変更後はこのメールアドレスでログインします。', currentEmail);
+  if (newEmail === null) return;
+  const t = newEmail.trim();
+  if (!t || t === currentEmail) return;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)){
+    alert('メールアドレスの形式が正しくありません。'); return;
+  }
+  try {
+    await callFn('change_email', { user_id: userId, new_email: t });
+    await loadAccounts();
+  } catch (e) {
+    alert('メールアドレスの変更に失敗しました：' + e.message);
+  }
 }
 
 /* ── 企業管理 ───────────────────────────────────────────────────── */
@@ -370,13 +438,21 @@ function renderAccounts(list){
     return;
   }
   let h = '<div class="tablewrap"><table><thead><tr>'
-    + '<th>メールアドレス</th><th>発行日</th><th>操作</th>'
+    + '<th>メールアドレス</th><th>状態</th><th>最終ログイン</th><th>発行日</th><th>操作</th>'
     + '</tr></thead><tbody>';
   list.forEach(a => {
+    const st = statusOf(a);
     h += '<tr>'
       + '<td>' + esc(a.email) + '</td>'
+      + '<td><span class="badge ' + st.cls + '">' + esc(st.label) + '</span></td>'
+      + '<td class="muted2">' + esc(fmtDateTime(a.last_sign_in_at)) + '</td>'
       + '<td class="muted2">' + esc(fmtDate(a.created_at)) + '</td>'
       + '<td><div class="actions">'
+      +   '<button class="btn-sm ghost" data-sus="' + esc(a.user_id) + '" '
+      +     'data-email="' + esc(a.email) + '" data-state="' + (st.suspended?'1':'0') + '">'
+      +     (st.suspended ? '再開' : '一時停止') + '</button>'
+      +   '<button class="btn-sm ghost" data-mail="' + esc(a.user_id) + '" '
+      +     'data-email="' + esc(a.email) + '">メール変更</button>'
       +   '<button class="btn-sm ghost" data-rpw="' + esc(a.user_id) + '" '
       +     'data-email="' + esc(a.email) + '">パスワード再設定</button>'
       +   '<button class="btn-sm danger" data-rm="' + esc(a.user_id) + '" '
@@ -386,6 +462,10 @@ function renderAccounts(list){
   });
   h += '</tbody></table></div>';
   $('accList').innerHTML = h;
+  $('accList').querySelectorAll('[data-sus]').forEach(b =>
+    b.onclick = () => toggleSuspend(b.dataset.sus, b.dataset.email, b.dataset.state === '1'));
+  $('accList').querySelectorAll('[data-mail]').forEach(b =>
+    b.onclick = () => changeEmail(b.dataset.mail, b.dataset.email));
   $('accList').querySelectorAll('[data-rpw]').forEach(b =>
     b.onclick = () => resetPassword(b.dataset.rpw, b.dataset.email));
   $('accList').querySelectorAll('[data-rm]').forEach(b =>
