@@ -468,10 +468,22 @@ async function issue(){
     expires_at: $('fExpiry').value ? ($('fExpiry').value + 'T23:59:59') : null,
     email: $('fEmail').value.trim() || null,
   };
-  const { data, error } = await sb.from('survey_requests').insert(payload).select().single();
+  let res = await sb.from('survey_requests').insert(payload).select().single();
+  /* email 列が無い環境（prism-survey-email.sql 未実行）では insert が 400 になる。
+     その場合は email を外して再発行する（受検依頼自体は成立。メール保存・自動送信は列追加後）。 */
+  let emailDropped = false;
+  if (res.error && /email/.test(res.error.message || '')
+      && /(column|schema cache)/i.test(res.error.message || '')) {
+    const { email, ...noEmail } = payload;
+    emailDropped = !!payload.email;
+    res = await sb.from('survey_requests').insert(noEmail).select().single();
+  }
+  const { data, error } = res;
   btn.disabled = false; btn.textContent = '発行する';
   if (error){ msg.textContent = '発行に失敗しました：' + error.message; msg.className = 'msg err'; return; }
-  msg.textContent = '✓ 受検依頼を発行しました。'; msg.className = 'msg ok';
+  msg.textContent = '✓ 受検依頼を発行しました。'
+    + (emailDropped ? '（メール列が未追加のため、メールアドレスは未保存。prism-survey-email.sql を実行すると保存・自動送信が有効化されます）' : '');
+  msg.className = 'msg ok';
   const url = SURVEY_BASE + '?t=' + data.token;
   $('issuedArea').innerHTML =
     '<div class="issued">'
