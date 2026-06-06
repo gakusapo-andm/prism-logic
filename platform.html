@@ -823,7 +823,7 @@ async function hydrate(companyId) {
     const [coRes, respRes, persRes] = await Promise.all([
       sb.from('companies').select('*').eq('id', companyId).single(),
       sb.from('responses').select('answers').eq('company_id', companyId),
-      sb.from('personas').select('meta').eq('company_id', companyId)
+      sb.from('personas').select('meta, persona_id').eq('company_id', companyId)
         .order('created_at', { ascending: true }),
     ]);
     if (coRes.error)   throw coRes.error;
@@ -840,7 +840,14 @@ async function hydrate(companyId) {
     /* [v31-C] バッチ insert は created_at が同一になり並び順が保証されないため、
        meta._order（保存時の並び）で安定ソートする。_order を持たない旧データは
        0 扱い＝クエリの created_at 昇順がそのまま残る（後方互換）。 */
-    const personas = (persRes.data || []).map(r => r.meta).filter(Boolean);
+    const personas = (persRes.data || []).map(function(r) {
+      var m = r.meta || null;
+      if (!m) return null;
+      /* [v37-③] 安定ID（persona_id 列）をローカルへ復元。meta に personaId が無い
+         旧データだけ列から補完し、次回保存で同じIDを衝突キーとして使い回す。 */
+      if (!m.personaId && r.persona_id) m = Object.assign({}, m, { personaId: r.persona_id });
+      return m;
+    }).filter(Boolean);
     personas.sort(function(a, b) {
       const ao = (a && typeof a._order === 'number') ? a._order : 0;
       const bo = (b && typeof b._order === 'number') ? b._order : 0;
@@ -890,34 +897,66 @@ async function pushConfig(cfg) {
 }
 
 /* ── write-through：prism_persona_results → personas ────────────────── */
-/* 当該企業のペルソナを全削除し、現在のリストを入れ直す。
-   追加・削除・並べ替え・最新化のいずれも一括で正しく反映できる。 */
+/* [v37-③] delete-all-then-insert → upsert＋差分削除へ移行。
+   ペルソナごとに安定ID persona_id（クライアント採番 personaId）を持たせ、
+     1) upsert（あれば更新・無ければ挿入。衝突キー = company_id, persona_id）
+     2) 現在セットに無い既存行だけ削除（全削除はしない）
+   の順で行う。upsert を先に通すので「消えてから入る」窓（partial-failure）を
+   作らない。upsert 失敗時は削除へ進まない。空リストは企業の全ペルソナ削除。 */
+function newPersonaId() {
+  try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return 'pid-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 async function pushPersonas(list) {
   if (!currentCompanyId) return;
-  const del = await sb.from('personas').delete().eq('company_id', currentCompanyId);
+  list = list || [];
+
+  /* 1) 行を作る（persona_id 必須・meta にも personaId として保持して往復させる）。
+     既存の personaId があれば再利用（＝upsert で当該行が温存・更新される）。 */
+  const seen = {};
+  const rows = list.map(function(p, i) {
+    const pid = p.personaId || (p.meta && p.meta.persona_id) || p.persona_id || newPersonaId();
+    return {
+      company_id:   currentCompanyId,
+      persona_id:   pid,
+      persona_name: p.personaName || '無題ペルソナ',
+      company_name: p.companyName || null,
+      mode:         p.mode || 'a',
+      items:        p.items || [],
+      /* 並び順を meta._order に焼き込む（hydrate 側で安定ソート）。元オブジェクトは
+         汚さないよう浅いコピーに付与。personaId も meta に残し再ハイドレートで復元。 */
+      meta:         Object.assign({}, p, { _order: i, personaId: pid }),
+    };
+  }).filter(function(r) {
+    /* 同一 persona_id の重複は upsert が拒否する（ON CONFLICT が同一行を二度更新できない）。
+       万一の重複に備え、先勝ちで一意化する。 */
+    if (seen[r.persona_id]) return false;
+    seen[r.persona_id] = 1; return true;
+  });
+
+  /* 2) upsert（先に入れてから消す＝窓を作らない）。 */
+  if (rows.length) {
+    const up = await sb.from('personas')
+      .upsert(rows, { onConflict: 'company_id,persona_id' });
+    if (up.error) {
+      console.error('[persona sync] upsert', up.error);
+      toast('⚠ ペルソナの同期に失敗しました'); return;   /* 失敗時は削除しない */
+    }
+  }
+
+  /* 3) 現在セットに無い既存行だけ削除。空リスト時は企業の全ペルソナ削除。 */
+  const keep = rows.map(function(r) { return r.persona_id; });
+  let delq = sb.from('personas').delete().eq('company_id', currentCompanyId);
+  if (keep.length) {
+    delq = delq.not('persona_id', 'in',
+      '(' + keep.map(function(x) { return '"' + x + '"'; }).join(',') + ')');
+  }
+  const del = await delq;
   if (del.error) {
     console.error('[persona sync] delete', del.error);
     toast('⚠ ペルソナの同期に失敗しました'); return;
   }
-  if (list && list.length) {
-    const rows = list.map(function(p, i) {
-      return {
-        company_id:   currentCompanyId,
-        persona_name: p.personaName || '無題ペルソナ',
-        company_name: p.companyName || null,
-        mode:         p.mode || 'a',
-        items:        p.items || [],
-        /* [v31-C] 並び順を meta._order に焼き込む（hydrate 側で安定ソート）。
-           元オブジェクトは汚さないよう浅いコピーに付与する。 */
-        meta:         Object.assign({}, p, { _order: i }),
-      };
-    });
-    const ins = await sb.from('personas').insert(rows);
-    if (ins.error) {
-      console.error('[persona sync] insert', ins.error);
-      toast('⚠ ペルソナの同期に失敗しました'); return;
-    }
-  }
+
   toast('✓ ペルソナを Supabase に保存しました');
 }
 
@@ -2773,6 +2812,7 @@ if (typeof module !== 'undefined' && module.exports) {
         enabledItems: S.cfg.enabledItems,
         customGroups: S.cfg.customGroups,
       });
+      persistConfig(S.cfg);
       S.cfgStatus = { type: 'ok', msg: '✓ 設定を保存しました（prism_company_config）。'
         + ' 問診ページ・集計に反映されます。' };
       updateCompanyTag();
@@ -3210,6 +3250,7 @@ if (typeof module !== 'undefined' && module.exports) {
       persona.companyName = S.cfg.companyName;
       PrismStorage.savePersonaResult(persona);
       S.personas = PrismStorage.loadPersonaResults() || [];
+      persistPersonas();
       S.lastResult = persona;
       S.agg.personaName = personaName;
       S.aggStatus = warnings.length
@@ -3288,7 +3329,6 @@ if (typeof module !== 'undefined' && module.exports) {
         ${list.length ? `<div class="btn-row">
           <button class="btn btn-sm btn-danger" data-act="clear-personas">全ペルソナを削除</button>
         </div>` : ''}
-        ${S.respStatus && S.tab === 'personas' ? '' : ''}
       </div>`;
   }
 
@@ -3362,6 +3402,17 @@ if (typeof module !== 'undefined' && module.exports) {
       </div>`;
   }
 
+  /* [v37-fix] platform 自身による並べ替え・削除・全消しは、自分の localStorage 書き込みでは
+     自分の storage イベントが発火しない（同一ドキュメント）ため write-through が漏れる。
+     これらの編集後は明示的に Supabase 同期を予約する（storage 経由と同じ scheduleSync）。 */
+  function persistPersonas() {
+    scheduleSync('personas', function() { return pushPersonas(S.personas); });
+  }
+  /* [v37-fix] 設定（companies）も同様に、親レルムの保存は明示同期が要る。 */
+  function persistConfig(cfg) {
+    scheduleSync('config', function() { return pushConfig(cfg); });
+  }
+
   function promotePersona(id, openAfter) {
     const idx = S.personas.findIndex(p => p.personaId === id);
     if (idx < 0) return;
@@ -3370,6 +3421,7 @@ if (typeof module !== 'undefined' && module.exports) {
     try {
       localStorage.setItem('prism_persona_results', JSON.stringify(S.personas));
     } catch (e) {}
+    persistPersonas();
     if (openAfter) openExternal('prism-results-v6.html');
     renderPersonas();
   }
@@ -3377,6 +3429,7 @@ if (typeof module !== 'undefined' && module.exports) {
   function deletePersona(id) {
     S.personas = S.personas.filter(p => p.personaId !== id);
     try { localStorage.setItem('prism_persona_results', JSON.stringify(S.personas)); } catch (e) {}
+    persistPersonas();
     if (S.lastResult && S.lastResult.personaId === id) S.lastResult = null;
     renderTabs();
     renderPersonas();
@@ -3538,6 +3591,7 @@ if (typeof module !== 'undefined' && module.exports) {
         try {
           applyManualOverride(persona, arg, newCls, { actor: S.overrideActor, reason: reason });
           localStorage.setItem('prism_persona_results', JSON.stringify(S.personas));
+          persistPersonas();
           S.ovStatus = { type: 'ok',
             msg: '✓ ' + arg + ' の分類を「' + newCls + '」に変更しました（代表者判断・記録済み）。' };
         } catch (e) {
@@ -3549,6 +3603,7 @@ if (typeof module !== 'undefined' && module.exports) {
         if (confirm('保存済みのペルソナをすべて削除します。よろしいですか？')) {
           S.personas = [];
           try { localStorage.setItem('prism_persona_results', JSON.stringify([])); } catch (e) {}
+          persistPersonas();
           S.lastResult = null;
           renderTabs(); renderPersonas();
         }
