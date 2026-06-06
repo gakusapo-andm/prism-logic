@@ -311,7 +311,6 @@ body {
 <div class="layout">
   <aside class="sidebar">
     <div class="co" id="companyLabel">読み込み中…</div>
-    <button class="co-refresh" id="refreshBtn" title="クラウドの最新データに更新します">↻ 最新化</button>
     <nav>
       <button class="nav-item active" data-page="home" onclick="showPage('home')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1z"/></svg>
@@ -1000,10 +999,6 @@ async function bootstrap() {
       location.href = 'login.html';
     });
   }
-
-  /* 更新ボタン（明示的リハイドレート） */
-  var refreshBtn = document.getElementById('refreshBtn');
-  if (refreshBtn) refreshBtn.addEventListener('click', refreshPlatform);
 
   /* 2) 企業の文脈を解決 */
   let companyId = null;
