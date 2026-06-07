@@ -132,6 +132,8 @@ body {
   border-left-color: var(--accent); font-weight: 600;
 }
 .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.nav-item.nav-disabled { color: var(--text-dim); cursor: not-allowed; }
+.nav-item.nav-disabled:hover { background: transparent; color: var(--text-dim); }
 
 .main { flex: 1; min-width: 0; padding: 24px 26px 48px; }
 .main.flush { padding: 0; }
@@ -376,13 +378,30 @@ body {
         <span>ホーム</span>
       </button>
       <div class="nav-section">PRISM LOGIC</div>
-      <button class="nav-item" data-page="persona" onclick="showPage('persona')">
+      <button class="nav-item" data-ptab="config" onclick="showPersonaTab('config')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12,2 22,8 22,16 12,22 2,16 2,8"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="8" x2="22" y2="16"/><line x1="22" y1="8" x2="2" y2="16"/></svg>
-        <span>ペルソナ設計</span>
+        <span>ペルソナ初期設定</span>
       </button>
       <button class="nav-item" data-page="requests" onclick="showPage('requests')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="6" r="1.5"/><circle cx="4" cy="12" r="1.5"/><circle cx="4" cy="18" r="1.5"/><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/></svg>
         <span>受検者一覧</span>
+      </button>
+      <button class="nav-item" data-ptab="responses" onclick="showPersonaTab('responses')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12l2 2 4-4"/></svg>
+        <span>回答状況</span>
+      </button>
+      <button class="nav-item" data-ptab="aggregate" onclick="showPersonaTab('aggregate')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>
+        <span>集計実行</span>
+      </button>
+      <button class="nav-item" data-ptab="personas" onclick="showPersonaTab('personas')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><path d="M17 8a3 3 0 0 1 0 6M21 20v-1a5 5 0 0 0-3-4.6"/></svg>
+        <span>ペルソナ一覧</span>
+      </button>
+      <div class="nav-section">入社テスト</div>
+      <button class="nav-item nav-disabled" onclick="toast('入社テストは開発準備中です')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6 2 2 6-6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z"/></svg>
+        <span>開発準備中</span>
       </button>
     </nav>
   </aside>
@@ -485,9 +504,9 @@ body {
       </div>
     </section>
 
-    <!-- ============ ペルソナ設計（admin コンソール）============ -->
+    <!-- ============ ペルソナ初期設定（admin コンソール）============ -->
     <section class="page" id="page-persona" hidden>
-      <iframe class="module-frame" data-mod="mod-admin" title="ペルソナ設計コンソール"></iframe>
+      <iframe class="module-frame" data-mod="mod-admin" title="ペルソナ初期設定コンソール"></iframe>
     </section>
 
     <!-- ============ 受検者一覧（本番 requests.html を埋め込み）============ -->
@@ -500,7 +519,7 @@ body {
       <div class="mod-toolbar">
         <button type="button" onclick="showPage('detail', true)">詳細セクションを開く ›</button>
         <span class="spacer"></span>
-        <button type="button" onclick="showPage('persona')">‹ ペルソナ設計へ戻る</button>
+        <button type="button" onclick="showPersonaTab('personas')">‹ ペルソナ一覧へ戻る</button>
       </div>
       <iframe class="module-frame" data-mod="mod-results" title="ペルソナ結果"></iframe>
     </section>
@@ -510,7 +529,7 @@ body {
       <div class="mod-toolbar">
         <button type="button" onclick="showPage('results', true)">‹ 結果ページへ戻る</button>
         <span class="spacer"></span>
-        <button type="button" onclick="showPage('persona')">‹ ペルソナ設計へ戻る</button>
+        <button type="button" onclick="showPersonaTab('personas')">‹ ペルソナ一覧へ戻る</button>
       </div>
       <iframe class="module-frame" data-mod="mod-detail" title="項目詳細"></iframe>
     </section>
@@ -594,15 +613,19 @@ async function refreshPlatform() {
 }
 
 var FRAME_PAGES = { persona: 1, results: 1, detail: 1 };
+var personaTab = 'config';      // ペルソナ系の現在タブ（config/responses/aggregate/personas）
+var personaPendingTab = null;   // iframe ready 待ちの送信予約
 
-function showPage(name, force) {
+function showPage(name, force) { _showPage(name, force, null); }
+
+/* サイドバーから「ペルソナ初期設定／回答状況／集計実行／ペルソナ一覧」を開く。
+   いずれも同じ mod-admin iframe を共有し、タブだけ postMessage で切り替える。 */
+function showPersonaTab(tab, force) { _showPage('persona', force, tab); }
+
+function _showPage(name, force, ptab) {
+  if (name === 'persona') personaTab = ptab || 'config';
   document.querySelectorAll('.page').forEach(function(p) {
     p.hidden = (p.id !== 'page-' + name);
-  });
-  /* results / detail は admin 配下の画面。サイドバーは「ペルソナ設計」を点灯 */
-  var navName = (name === 'results' || name === 'detail') ? 'persona' : name;
-  document.querySelectorAll('.nav-item').forEach(function(b) {
-    b.classList.toggle('active', b.dataset.page === navName);
   });
   var isFrame = !!FRAME_PAGES[name];
   /* 受検者一覧（requests）は本番 requests.html を src 埋め込み。loadModule は使わない */
@@ -617,8 +640,36 @@ function showPage(name, force) {
       rf.setAttribute('src', ru);
     }
   }
+  if (name === 'persona') sendPersonaTab(personaTab);  /* 親→iframe タブ切替 */
   if (name === 'home') renderHome();   /* [v32-①] ホームを実データで描画 */
+  updateNavActive(name);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ナビのアクティブ表示。ペルソナ系は data-ptab、その他は data-page で判定。
+   結果／詳細はペルソナ系の出力なので「ペルソナ一覧」を点灯する。 */
+function updateNavActive(name) {
+  var ptab = null;
+  if (name === 'persona') ptab = personaTab;
+  else if (name === 'results' || name === 'detail') ptab = 'personas';
+  document.querySelectorAll('.nav-item').forEach(function(b) {
+    if (b.hasAttribute('data-ptab')) {
+      b.classList.toggle('active', ptab != null && b.getAttribute('data-ptab') === ptab);
+    } else {
+      b.classList.toggle('active', ptab == null && b.dataset.page === name);
+    }
+  });
+}
+
+/* 親 → iframe（mod-admin）へタブ切替を通知。未ロード時は load 後・iframe からの
+   prismReady 受信時に最新の保留タブを再送して取りこぼしを防ぐ（親関数は呼ばない）。 */
+function sendPersonaTab(tab) {
+  personaPendingTab = tab;
+  var f = document.querySelector('#page-persona iframe');
+  if (!f) return;
+  var post = function() { try { f.contentWindow.postMessage({ prismSetTab: personaPendingTab }, '*'); } catch (e) {} };
+  post();
+  f.addEventListener('load', post, { once: true });
 }
 
 /* ── [v32-①] ホーム画面の実データ描画 ─────────────────────────────────
@@ -780,7 +831,16 @@ function toggleNews(btn){
    force=true で結果／詳細を毎回再注入し、直前に確定したペルソナを反映する。 */
 window.addEventListener('message', function(e) {
   var d = e.data;
-  if (!d || !d.prismOpen) return;
+  if (!d) return;
+  /* iframe（mod-admin）準備完了 → 保留中のタブ指定があれば送り返す */
+  if (d.prismReady) {
+    if (personaPendingTab) {
+      var pf = document.querySelector('#page-persona iframe');
+      if (pf) { try { pf.contentWindow.postMessage({ prismSetTab: personaPendingTab }, '*'); } catch (err) {} }
+    }
+    return;
+  }
+  if (!d.prismOpen) return;
   if (/detail/.test(d.prismOpen))      showPage('detail', true);
   else if (/results/.test(d.prismOpen)) showPage('results', true);
 });
@@ -1343,7 +1403,7 @@ body {
 .card {
   background: var(--bg-white);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 8px;   /* [変更] 外枠はシャープに8px（内側の枠は現状維持） */
   padding: 26px 26px;
   margin-top: 20px;
 }
@@ -1707,9 +1767,10 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
   .field-row { flex-direction: column; gap: 0; }
   .tab { padding: 10px 9px 11px; font-size: 12px; }
 }
-/* 埋め込みモード（プラットフォームの iframe 内）: 自前のブランドヘッダーを隠す */
-html.embed .topbar-row, html.embed .topbar-note { display: none; }
-html.embed .topbar { padding-top: 10px; }
+/* 埋め込みモード（プラットフォームの iframe 内）: 自前のヘッダー・タブバーを隠す
+   （タブは親シェルのサイドバーへ外出ししたため、内部タブバーは非表示にする）*/
+html.embed .topbar-row, html.embed .topbar-note, html.embed .tabs { display: none; }
+html.embed .topbar { display: none; }
 </style>
 <script>if(location.search.indexOf('embed')>-1||window.parent!==window)document.documentElement.classList.add('embed');<\/script>
 </head>
@@ -3804,6 +3865,18 @@ if (typeof module !== 'undefined' && module.exports) {
   /* 起動 */
   loadAll();
   render();
+
+  /* [変更] 親シェル（サイドバー）からのタブ切替を受ける。
+     ※ iframe レルム内で自前の S.tab を切り替えるだけ。親関数は呼ばない。 */
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d) return;
+    if (d.prismSetTab && ['config','responses','aggregate','personas'].indexOf(d.prismSetTab) !== -1) {
+      if (S.tab !== d.prismSetTab) { S.tab = d.prismSetTab; render(); }
+    }
+  });
+  /* 準備完了を親へ通知（親は保留中のタブ指定があれば送り返す） */
+  try { window.parent.postMessage({ prismReady: true }, '*'); } catch (e) {}
 })();
 <\/script>
 
