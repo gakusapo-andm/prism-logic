@@ -152,6 +152,17 @@ tr:last-child td{ border-bottom:0; }
       <div id="listArea"></div>
     </section>
 
+    <section class="card">
+      <h2>お知らせ管理</h2>
+      <p class="muted">ここで投稿したお知らせは、全クライアントのホーム画面に表示されます（公開中・新しい順・最大5件）。</p>
+      <div id="annMsg"></div>
+      <div class="addrow">
+        <input type="text" id="annTitle" placeholder="お知らせのタイトル（例：年末年始の休業について）">
+        <button class="btn" id="annAddBtn">投稿</button>
+      </div>
+      <div id="annList" style="margin-top:14px;"></div>
+    </section>
+
     <section class="card" id="accCard" hidden>
       <div class="acc-head">
         <h2 id="accTitle">採用担当者アカウント</h2>
@@ -240,8 +251,11 @@ async function init(){
   $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') addCompany(); });
   $('accClose').onclick = closeAccounts;
   $('accAddBtn').onclick = addAccount;
+  $('annAddBtn').onclick = addAnnouncement;
+  $('annTitle').addEventListener('keydown', e => { if (e.key === 'Enter') addAnnouncement(); });
 
   await loadCompanies();
+  await loadAnnouncements();
   $('loading').hidden = true;
   $('main').hidden = false;
 }
@@ -384,6 +398,98 @@ async function deleteCompany(id){
   if (error){ alert('削除に失敗しました：' + error.message); return; }
   if (accCompanyId === id) closeAccounts();
   await loadCompanies();
+}
+
+/* ── お知らせ管理（announcements。スタッフRLSで直接読み書き）──────────── */
+let announcements = [];
+async function loadAnnouncements(){
+  const area = $('annList');
+  const { data, error } = await sb.from('announcements')
+    .select('*').order('published_at', { ascending: false });
+  if (error){
+    area.innerHTML =
+      '<div class="msg err">お知らせを取得できませんでした：' + esc(error.message) + '</div>'
+      + '<div class="muted">「announcements」テーブルが未作成の可能性があります。'
+      + 'prism-announcements.sql を SQL Editor で実行してください。</div>';
+    return;
+  }
+  announcements = data || [];
+  renderAnnouncements();
+}
+
+function renderAnnouncements(){
+  const area = $('annList');
+  if (!announcements.length){
+    area.innerHTML =
+      '<div class="empty">まだお知らせがありません。上のフォームから投稿してください。</div>';
+    return;
+  }
+  let h = '<div class="tablewrap"><table><thead><tr>'
+    + '<th>公開日</th><th>タイトル</th><th>状態</th><th>操作</th>'
+    + '</tr></thead><tbody>';
+  announcements.forEach(a => {
+    const pub = (a.is_published !== false);
+    h += '<tr>'
+      + '<td class="muted">' + fmtDate(a.published_at) + '</td>'
+      + '<td>' + esc(a.title) + '</td>'
+      + '<td><span class="badge ' + (pub ? 'badge-green' : 'badge-gray') + '">'
+      +   (pub ? '公開中' : '非公開') + '</span></td>'
+      + '<td><div class="actions">'
+      +   '<button class="btn-sm ghost" data-ann-toggle="' + esc(a.id) + '">'
+      +     (pub ? '非公開にする' : '公開する') + '</button>'
+      +   '<button class="btn-sm ghost" data-ann-edit="' + esc(a.id) + '">編集</button>'
+      +   '<button class="btn-sm danger" data-ann-del="' + esc(a.id) + '">削除</button>'
+      + '</div></td>'
+      + '</tr>';
+  });
+  h += '</tbody></table></div>';
+  area.innerHTML = h;
+  area.querySelectorAll('[data-ann-toggle]').forEach(b => b.onclick = () => toggleAnnouncement(b.dataset.annToggle));
+  area.querySelectorAll('[data-ann-edit]').forEach(b => b.onclick = () => editAnnouncement(b.dataset.annEdit));
+  area.querySelectorAll('[data-ann-del]').forEach(b => b.onclick = () => deleteAnnouncement(b.dataset.annDel));
+}
+
+async function addAnnouncement(){
+  const msg = $('annMsg'); msg.textContent = ''; msg.className = '';
+  const title = $('annTitle').value.trim();
+  if (!title){ msg.textContent = 'お知らせのタイトルを入力してください。'; msg.className = 'msg err'; return; }
+  const btn = $('annAddBtn'); btn.disabled = true; btn.textContent = '投稿中…';
+  const { error } = await sb.from('announcements').insert({ title: title });
+  btn.disabled = false; btn.textContent = '投稿';
+  if (error){ msg.textContent = '投稿に失敗しました：' + error.message; msg.className = 'msg err'; return; }
+  msg.textContent = '✓ お知らせを投稿しました。クライアントのホームに表示されます。'; msg.className = 'msg ok';
+  $('annTitle').value = '';
+  await loadAnnouncements();
+}
+
+async function toggleAnnouncement(id){
+  const a = announcements.find(x => x.id === id);
+  if (!a) return;
+  const next = !(a.is_published !== false);
+  const { error } = await sb.from('announcements').update({ is_published: next }).eq('id', id);
+  if (error){ alert('変更に失敗しました：' + error.message); return; }
+  await loadAnnouncements();
+}
+
+async function editAnnouncement(id){
+  const a = announcements.find(x => x.id === id);
+  if (!a) return;
+  const t = prompt('お知らせのタイトルを編集してください。', a.title);
+  if (t === null) return;
+  const v = t.trim();
+  if (!v || v === a.title) return;
+  const { error } = await sb.from('announcements').update({ title: v }).eq('id', id);
+  if (error){ alert('編集に失敗しました：' + error.message); return; }
+  await loadAnnouncements();
+}
+
+async function deleteAnnouncement(id){
+  const a = announcements.find(x => x.id === id);
+  if (!a) return;
+  if (!confirm('お知らせ「' + a.title + '」を削除しますか？元に戻せません。')) return;
+  const { error } = await sb.from('announcements').delete().eq('id', id);
+  if (error){ alert('削除に失敗しました：' + error.message); return; }
+  await loadAnnouncements();
 }
 
 /* ── 採用担当者アカウント管理（Edge Function 経由）───────────────────── */
