@@ -494,6 +494,7 @@ const STEP2_PER_PAGE = 4;
    name は STEP1/STEP2 では非表示。STEP3-i の順位づけ時にのみ提示する。
    cat は集計用に保持するが、問診UIには一切出さない。
    ============================================================ */
+/* @gen:ITEMS_MASTER  生成元 docs/items-master.json ・手編集禁止（編集は JSON → tools/gen-items.js で再生成） */
 const ITEMS_MASTER = [
   { id:'H1', cat:'heart', name:'仕事観', kind:'binary',
     q:'仕事を通じて「何を大事にするか」という価値観は、この仕事で重要だと思いますか？',
@@ -515,7 +516,6 @@ const ITEMS_MASTER = [
     q:'自分のことを率直に開示することは、この仕事で重要だと思いますか？',
     poleA:{label:'共有型', desc:'経験や弱みを率直に開き、信頼を築く'},
     poleB:{label:'表明型', desc:'考えや判断の理由を明確に伝え、透明性を保つ'} },
-
   { id:'G1', cat:'gut', name:'自律動機', kind:'intensity',
     q:'指示されなくても自分から動く主体性は、この仕事で重要だと思いますか？' },
   { id:'G2', cat:'gut', name:'知的好奇心', kind:'binary',
@@ -526,13 +526,12 @@ const ITEMS_MASTER = [
     qStrength:'この仕事で力を発揮するうえで、「何に動機づけられるか」は重要だと思いますか？',
     q:'この仕事で力を発揮するうえで、次の5つを「大事な順」に並べてください。',
     drivers:[
-      { id:'seika',  label:'成果', desc:'やり遂げた手応え・数字が出る' },
+      { id:'seika', label:'成果', desc:'やり遂げた手応え・数字が出る' },
       { id:'nakama', label:'仲間', desc:'信頼できる仲間と働く' },
       { id:'sairyo', label:'裁量', desc:'自分で決めて動ける' },
-      { id:'hyoka',  label:'評価', desc:'認められ、処遇に反映される' },
+      { id:'hyoka', label:'評価', desc:'認められ、処遇に反映される' },
       { id:'anshin', label:'安心', desc:'生活と立場が安定している' },
     ] },
-
   { id:'C1', cat:'core', name:'内省的学習', kind:'binary',
     q:'経験から学び取る内省的な姿勢は、この仕事で重要だと思いますか？',
     poleA:{label:'体験型', desc:'実際にやってみることで学ぶ'},
@@ -563,7 +562,6 @@ const ITEMS_MASTER = [
     q:'答えのない曖昧な状況に耐える力は、この仕事で重要だと思いますか？',
     poleA:{label:'探索型', desc:'手探りで進めながら考える'},
     poleB:{label:'直感型', desc:'直感で素早く判断する'} },
-
   { id:'D1', cat:'head', name:'認知力', kind:'binary',
     q:'物事を素早く的確に理解する力は、この仕事で重要だと思いますか？',
     poleA:{label:'処理速度型', desc:'速く回すことに強い'},
@@ -576,8 +574,6 @@ const ITEMS_MASTER = [
     q:'本質や背景を見抜く力は、この仕事で重要だと思いますか？',
     poleA:{label:'直観型', desc:'ひらめきで見抜く'},
     poleB:{label:'観察型', desc:'観察の積み重ねで見抜く'} },
-
-  /* ─── Tier 2: Harder層（育成可能）16項目・intensity ─── */
   { id:'E1', cat:'head', tier:2, name:'近づきやすさ', kind:'intensity',
     q:'相手が気軽に話しかけられる、近づきやすい雰囲気をまとう力は、この仕事で重要だと思いますか？' },
   { id:'E2', cat:'head', tier:2, name:'上司との関係構築', kind:'intensity',
@@ -610,8 +606,6 @@ const ITEMS_MASTER = [
     q:'問題の本質を見極め、論理的に分析して有効な解決策にたどり着く力は、この仕事で重要だと思いますか？' },
   { id:'E16', cat:'head', tier:2, name:'自己研鑽', kind:'intensity',
     q:'自分の弱みに自覚的で、それを改善し続ける力は、この仕事で重要だと思いますか？' },
-
-  /* ─── Tier 3: 管理職向け 11項目・intensity ─── */
   { id:'M1', cat:'mgmt', tier:3, name:'部下・他者の育成', kind:'intensity',
     q:'部下や周囲の人材の成長を支援し、引き上げる力は、管理職にとって重要だと思いますか？' },
   { id:'M2', cat:'mgmt', tier:3, name:'部下への直言', kind:'intensity',
@@ -635,6 +629,7 @@ const ITEMS_MASTER = [
   { id:'M11', cat:'mgmt', tier:3, name:'イノベーションのマネジメント', kind:'intensity',
     q:'創造的なアイデアを評価・選別し、実用化につなげる仕組みをつくる力は、管理職にとって重要だと思いますか？' },
 ];
+/* @gen:end */
 
 /* 全項目に tier を補完（未指定は Tier 1） */
 ITEMS_MASTER.forEach(it => { if (it.tier == null) it.tier = 1; });
