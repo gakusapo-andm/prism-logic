@@ -162,8 +162,9 @@ body {
 .page-with-toolbar .module-frame { height: calc(100vh - 103px); }
 
 .card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 20px 22px;
+  background: var(--surface); border: none;
+  border-radius: 8px; padding: 20px 22px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.06);
 }
 .card-h {
   display: flex; align-items: center; gap: 8px;
@@ -291,7 +292,8 @@ body {
 .nw-hl b { font-size: 17px; font-weight: 700; }
 .nw-sub { color: var(--accent); font-size: 13.5px; font-weight: 600; }
 .nw-more { color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.nw-box { background: var(--surface); border: 1px solid var(--border); border-radius: 0; overflow: hidden; }
+.nw-box { background: var(--surface); border: none; border-radius: 0; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.06); }
 .nw-item { border-bottom: 1px solid var(--soft); }
 .nw-item:last-child { border-bottom: none; }
 .nw-row { display: flex; align-items: center; gap: 20px; padding: 15px 22px; }
@@ -1065,7 +1067,7 @@ async function pushConfig(cfg) {
   const { error } = await sb.from('companies')
     .update(configToRow(cfg)).eq('id', currentCompanyId);
   if (error) { console.error('[config sync]', error); toast('⚠ 設定の同期に失敗しました'); }
-  else       { toast('✓ 設定を Supabase に保存しました'); }
+  else       { toast('✓ 設定をデータベースに保存しました'); }
 }
 
 /* ── write-through：prism_persona_results → personas ────────────────── */
@@ -1129,7 +1131,7 @@ async function pushPersonas(list) {
     toast('⚠ ペルソナの同期に失敗しました'); return;
   }
 
-  toast('✓ ペルソナを Supabase に保存しました');
+  toast('✓ ペルソナをデータベースに保存しました');
 }
 
 /* ── storage イベント購読：モジュール（iframe）の書き込みを拾う ──────── */
@@ -1181,7 +1183,7 @@ async function bootstrap() {
      hydrate が現在企業ぶんを必ず上書きするため、起動時の全消去は不要になった。
      全消去は他タブ（別企業）のキャッシュまで巻き込むため、ログアウト時のみに限定する。 */
   if (!sb) {
-    showOverlay('Supabase に接続できません。ネットワーク環境をご確認ください。');
+    showOverlay('データベースに接続できません。ネットワーク環境をご確認ください。');
     return;
   }
   /* 1) セッション確認。未ログインならログインページへ */
@@ -1402,15 +1404,19 @@ body {
 /* ─── Card ────────────────────────────────── */
 .card {
   background: var(--bg-white);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 8px;   /* [変更] 外枠はシャープに8px（内側の枠は現状維持） */
+  box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.06);
   padding: 26px 26px;
   margin-top: 20px;
 }
 .card-head { margin-bottom: 18px; }
+.card-head.out { margin: 4px 2px 12px; }          /* [変更] タイトルは枠の外（カードの上） */
+.card-head.out + .card { margin-top: 0; }          /* 直後のカードは上マージンを詰める */
 .card-title {
   font-family: 'Outfit', sans-serif;
   font-size: 17px; font-weight: 800; margin-bottom: 4px;
+  color: var(--accent);                            /* [変更] タイトル文字は緑に統一 */
 }
 .card-desc { font-size: 12px; color: var(--text-secondary); }
 
@@ -2849,11 +2855,11 @@ if (typeof module !== 'undefined' && module.exports) {
     };
 
     view.innerHTML = `
+      <div class="card-head out">
+        <div class="card-title">初期設定（企業設定）</div>
+        <div class="card-desc">職種・役職と出題項目を定義します。</div>
+      </div>
       <div class="card">
-        <div class="card-head">
-          <div class="card-title">初期設定（企業設定）</div>
-          <div class="card-desc">職種・役職と出題項目を定義します。</div>
-        </div>
         <div class="callout">
           ここで定義した<strong>職種・役職</strong>は、問診ページのプルダウンと、集計時の
           <strong>Hygiene 横断判定</strong>（全職種・全役職で合意率70%以上か）に使われます。
@@ -3043,11 +3049,11 @@ if (typeof module !== 'undefined' && module.exports) {
          </div></td></tr>`;
 
     view.innerHTML = `
+      <div class="card-head out">
+        <div class="card-title">回答状況</div>
+        <div class="card-desc">問診で集まった生回答（<code>prism_raw_responses</code>）の確認。</div>
+      </div>
       <div class="card">
-        <div class="card-head">
-          <div class="card-title">回答状況</div>
-          <div class="card-desc">問診で集まった生回答（<code>prism_raw_responses</code>）の確認。</div>
-        </div>
 
         <div class="stat-grid">
           <div class="stat"><div class="stat-num">${S.responses.length}</div><div class="stat-label">総回答数</div></div>
@@ -3282,11 +3288,11 @@ if (typeof module !== 'undefined' && module.exports) {
       : `<div class="cg-empty" style="padding:6px 0 12px;">カスタムグループは未作成です。任意のメンバー集合（例: 営業ハイパフォーマー候補）を作れます。</div>`;
 
     view.innerHTML = `
+      <div class="card-head out">
+        <div class="card-title">集計実行</div>
+        <div class="card-desc">対象／比較グループを選び <code>aggregatePersona()</code> を実行、結果を保存します。</div>
+      </div>
       <div class="card">
-        <div class="card-head">
-          <div class="card-title">集計実行</div>
-          <div class="card-desc">対象／比較グループを選び <code>aggregatePersona()</code> を実行、結果を保存します。</div>
-        </div>
         ${!ready ? `<div class="status warn">
           ⚠ 集計には<strong>企業設定</strong>と<strong>1件以上の回答</strong>が必要です。
           「初期設定」で職種・役職を定義し、「回答状況」で回答を用意してください。
@@ -3519,11 +3525,11 @@ if (typeof module !== 'undefined' && module.exports) {
            保存済みのペルソナはありません。「集計実行」タブで作成してください。</div>`;
 
     view.innerHTML = `
+      <div class="card-head out">
+        <div class="card-title">ペルソナ一覧</div>
+        <div class="card-desc">保存済みの集計結果（<code>prism_persona_results</code>）。</div>
+      </div>
       <div class="card">
-        <div class="card-head">
-          <div class="card-title">ペルソナ一覧</div>
-          <div class="card-desc">保存済みの集計結果（<code>prism_persona_results</code>）。</div>
-        </div>
         <div class="callout">
           結果ページ（<code>prism-results-v6.html</code> ／ <code>prism-detail-section-v6.html</code>）は、
           一覧の<strong>最新（末尾）の集計結果</strong>を表示します。別の結果を表示したいときは
