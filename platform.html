@@ -723,6 +723,18 @@ function hDate(iso, short){
                : (y+'/'+p(d.getMonth()+1)+'/'+p(d.getDate()));
 }
 function hStatusJa(s){ return s==='completed' ? '完了' : (s==='opened' ? '受検中' : '未着手'); }
+/* 受検期限までの「暦日」差。expires_at は requests.html が「<選んだ日>T23:59:59」で保存
+   ＝選んだ暦日いっぱい有効。インスタント差ではなく暦日で比較し TZ 由来のズレを避ける。
+   0=本日まで / 正=あとN日 / 負=期限切れ。日付部（先頭10桁）を暦日として扱う。 */
+function hDueDays(iso){
+  if (!iso) return null;
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+  if (!m) return null;
+  var exp = Date.UTC(+m[1], +m[2]-1, +m[3]);
+  var n = new Date();
+  var today = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());  /* ローカル(JST)の本日 */
+  return Math.round((exp - today) / 86400000);
+}
 function homeRow3(msg){ return '<tr><td colspan="3" class="home-empty">'+hEsc(msg)+'</td></tr>'; }
 
 async function renderHome(){
@@ -772,7 +784,7 @@ async function renderHome(){
       elD.innerHTML = '<li class="home-empty">期限の近い受検依頼はありません</li>';
     } else {
       elD.innerHTML = withDue.slice(0,5).map(function(r){
-        var days = Math.ceil((new Date(r.expires_at) - Date.now()) / 86400000);
+        var days = hDueDays(r.expires_at);
         var label = days < 0 ? '期限切れ' : (days === 0 ? '本日まで' : 'あと' + days + '日');
         var cls = days <= 3 ? 'due' : 'soon';
         return '<li><span class="title-link" onclick="showPage(\'requests\')">'
@@ -820,6 +832,7 @@ function homeSearch(){
 
 /* ── 問診項目（アセスメント項目一覧）。システム ITEMS_MASTER と同一の定義を表示する
    静的な参照ページ。会社に依存しないため初回表示時に一度だけ描画する。 ── */
+/* @gen:ITEM_LIST  生成元 docs/items-master.json ・手編集禁止（編集は JSON → tools/gen-items.js で再生成） */
 var ITEM_LIST = {
   tier1: [
     { ax:'HEART', axd:'価値観・スタンス', cls:'ax-heart', rows:[
@@ -828,12 +841,12 @@ var ITEM_LIST = {
       ['H3','他者・組織','他者や組織との関わり方をどう捉えるかの志向性。（共生型／触発型）'],
       ['H4','ユーモア','場やコミュニケーションにユーモアを利かせる構え。（親和型／着想型）'],
       ['H5','自己開示','自分の経験や考えを率直に開示し、信頼を築く姿勢。（共有型／表明型）'],
-    ]},
+    ] },
     { ax:'GUT', axd:'動機の源', cls:'ax-gut', rows:[
       ['G1','自律動機','指示を待たず自ら動き出す内発的なエネルギー（主体性）。'],
       ['G2','知的好奇心','自ら学びに行き、知ろうとする欲求。（広域型／深堀型）'],
       ['G3','動機方向性','何に動機づけられるかの優先順位（成果／仲間／裁量／評価／安心）。'],
-    ]},
+    ] },
     { ax:'CORE', axd:'気質・人格コア', cls:'ax-core', rows:[
       ['C1','内省的学習','経験から学び取る内省的な姿勢。（体験型／概念型）'],
       ['C2','自己認識','自分の強み・弱みを正しく把握していること。（内省型／対話型）'],
@@ -843,12 +856,12 @@ var ITEM_LIST = {
       ['C6','几帳面性','約束・納期・細部を守ろうとする規律性。（完成度優先／期限優先）'],
       ['C7','対人協調','場の空気に気づき、周囲と歩調を合わせる協調気質。（共感型／調整型）'],
       ['C8','曖昧さ耐性','答えのない状況でも動き出せる気質。（探索型／直感型）'],
-    ]},
+    ] },
     { ax:'HEAD', axd:'思考の核', cls:'ax-head', rows:[
       ['D1','認知力','物事を素早く的確に理解する力。（処理速度型／処理深度型）'],
       ['D2','構想力','先を見通して構想を描く力。（ビジョン型／パターン型）'],
       ['D3','洞察力','本質や背景を見抜く力。（直観型／観察型）'],
-    ]},
+    ] },
   ],
   tier2: [
     ['E1','近づきやすさ','相手が気軽に話しかけられる、近づきやすい雰囲気をまとう力。'],
@@ -882,6 +895,7 @@ var ITEM_LIST = {
     ['M11','イノベーションのマネジメント','創造的なアイデアを評価・選別し、実用化につなげる仕組みをつくる力。'],
   ],
 };
+/* @gen:end */
 var itemsRendered = false;
 function renderItems() {
   if (itemsRendered) return;
@@ -2054,75 +2068,69 @@ const PRISM_CONFIG = {
   TIEBREAK_MIN_GROUP: 4,
 };
 
+/* @gen:ENGINE  生成元 docs/items-master.json ・手編集禁止（編集は JSON → tools/gen-items.js で再生成） */
 /* G3「動機方向性」5ドライバー定義（引き継ぎシート v6 付録A・B案） */
 const G3_DRIVERS = [
-  { id: 'seika',  label: '成果', desc: 'やり遂げた手応え・数字が出る' },
+  { id: 'seika', label: '成果', desc: 'やり遂げた手応え・数字が出る' },
   { id: 'nakama', label: '仲間', desc: '信頼できる仲間と働く' },
   { id: 'sairyo', label: '裁量', desc: '自分で決めて動ける' },
-  { id: 'hyoka',  label: '評価', desc: '認められ、処遇に反映される' },
+  { id: 'hyoka', label: '評価', desc: '認められ、処遇に反映される' },
   { id: 'anshin', label: '安心', desc: '生活と立場が安定している' },
 ];
 
-/* Tier 1 の19項目定義（カテゴリ順 / 種別フラグ付き）
+/* 全Tier項目マスター（カテゴリ順 / 種別フラグ付き。名は歴史的経緯で実体は全Tier）
    - intensityOnly: 強度のみ項目（方向ステップなし）
    - ranking:       順位づけ項目（G3のみ。合意率は定義されない → 'profile'）
-   ※ tier フィールドは将来 Tier 2/3 追加時の項目ゲーティング用（B-2）。
-     現状は全項目 tier:1。混在Tier集計は「項目別の有効回答分母」で吸収する。 */
+   - tier:          Tier1=採用ゲート対象 / Tier2,3=育成・ゲート外（混在集計は項目別の有効回答分母で吸収）*/
 const TIER1_ITEMS = [
-  { id: 'H1', name: '仕事観',     category: 'HEART', tier: 1, labelA: '貢献型',     labelB: '探究型',     intensityOnly: false },
-  { id: 'H2', name: '倫理・誠実性', category: 'HEART', tier: 1, labelA: '規範型',     labelB: '良心型',     intensityOnly: false },
-  { id: 'H3', name: '他者・組織',  category: 'HEART', tier: 1, labelA: '共生型',     labelB: '触発型',     intensityOnly: false },
-  { id: 'H4', name: 'ユーモア',    category: 'HEART', tier: 1, labelA: '親和型',     labelB: '着想型',     intensityOnly: false },
-  { id: 'H5', name: '自己開示',    category: 'HEART', tier: 1, labelA: '共有型',     labelB: '表明型',     intensityOnly: false },
-  { id: 'G1', name: '自律動機',    category: 'GUT',   tier: 1, labelA: null,        labelB: null,        intensityOnly: true  },
-  { id: 'G2', name: '知的好奇心',  category: 'GUT',   tier: 1, labelA: '広域型',     labelB: '深堀型',     intensityOnly: false },
-  { id: 'G3', name: '動機方向性',  category: 'GUT',   tier: 1, labelA: null,        labelB: null,        intensityOnly: false, ranking: true, drivers: G3_DRIVERS },
-  { id: 'C1', name: '内省的学習',  category: 'CORE',  tier: 1, labelA: '体験型',     labelB: '概念型',     intensityOnly: false },
-  { id: 'C2', name: '自己認識',    category: 'CORE',  tier: 1, labelA: '内省型',     labelB: '対話型',     intensityOnly: false },
-  { id: 'C3', name: '情緒安定性',  category: 'CORE',  tier: 1, labelA: '安定型',     labelB: '回復型',     intensityOnly: false },
-  { id: 'C4', name: '粘り強さ',    category: 'CORE',  tier: 1, labelA: null,        labelB: null,        intensityOnly: true  },
-  { id: 'C5', name: '失敗対処戦略', category: 'CORE',  tier: 1, labelA: '切替型',     labelB: '追究型',     intensityOnly: false },
-  { id: 'C6', name: '几帳面性',    category: 'CORE',  tier: 1, labelA: '完成度優先', labelB: '期限優先',   intensityOnly: false },
-  { id: 'C7', name: '対人協調',    category: 'CORE',  tier: 1, labelA: '共感型',     labelB: '調整型',     intensityOnly: false },
-  { id: 'C8', name: '曖昧さ耐性',  category: 'CORE',  tier: 1, labelA: '探索型',     labelB: '直感型',     intensityOnly: false },
-  { id: 'D1', name: '認知力',     category: 'HEAD',  tier: 1, labelA: '処理速度型', labelB: '処理深度型', intensityOnly: false },
-  { id: 'D2', name: '構想力',     category: 'HEAD',  tier: 1, labelA: 'ビジョン型', labelB: 'パターン型', intensityOnly: false },
-  { id: 'D3', name: '洞察力',     category: 'HEAD',  tier: 1, labelA: '直観型',     labelB: '観察型',     intensityOnly: false },
-
-  /* ── Tier 2: Harder層（育成可能）16項目 ─ 全て intensityOnly ──
-     Lominger Harder tier 由来。HEAD 育成層の3サブ軸（関係/推進/思考）。
-     #31対人感度 と #64他者理解 は E6 に統合（中間案）。 */
-  { id: 'E1',  name: '近づきやすさ',           category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E2',  name: '上司との関係構築',       category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E3',  name: '上位経営層との関わり',   category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E4',  name: '思いやり',               category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E5',  name: '対立処理',               category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E6',  name: '対人理解',               category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E7',  name: '同僚・他部署との関係構築', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E8',  name: '交渉',                   category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E9',  name: '組織内立ち回り',         category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E10', name: '組織政治への感度',       category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E11', name: '創造性',                 category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E12', name: '意思決定の質',           category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E13', name: '即応的学習',             category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E14', name: '大局観',                 category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E15', name: '問題解決',               category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'E16', name: '自己研鑽',               category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
-
-  /* ── Tier 3: 管理職向け 11項目 ─ 全て intensityOnly ──
-     管理職という役割で括る層。Lominger の Easier/Harder をまたいで採取。 */
-  { id: 'M1',  name: '部下・他者の育成',       category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M2',  name: '部下への直言',           category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M3',  name: '他者の動機づけ',         category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M4',  name: '部下への関心',           category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M5',  name: '部下への公平性',         category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M6',  name: '効果的なチーム構築',     category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M7',  name: 'ビジョンの浸透',         category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M8',  name: '管理者としての勇気',     category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M9',  name: '局面を引き取る統率力',   category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
-  { id: 'M10', name: '多様性のマネジメント',   category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'H1', name: '仕事観', category: 'HEART', tier: 1, labelA: '貢献型', labelB: '探究型', intensityOnly: false },
+  { id: 'H2', name: '倫理・誠実性', category: 'HEART', tier: 1, labelA: '規範型', labelB: '良心型', intensityOnly: false },
+  { id: 'H3', name: '他者・組織', category: 'HEART', tier: 1, labelA: '共生型', labelB: '触発型', intensityOnly: false },
+  { id: 'H4', name: 'ユーモア', category: 'HEART', tier: 1, labelA: '親和型', labelB: '着想型', intensityOnly: false },
+  { id: 'H5', name: '自己開示', category: 'HEART', tier: 1, labelA: '共有型', labelB: '表明型', intensityOnly: false },
+  { id: 'G1', name: '自律動機', category: 'GUT', tier: 1, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'G2', name: '知的好奇心', category: 'GUT', tier: 1, labelA: '広域型', labelB: '深堀型', intensityOnly: false },
+  { id: 'G3', name: '動機方向性', category: 'GUT', tier: 1, labelA: null, labelB: null, intensityOnly: false, ranking: true, drivers: G3_DRIVERS },
+  { id: 'C1', name: '内省的学習', category: 'CORE', tier: 1, labelA: '体験型', labelB: '概念型', intensityOnly: false },
+  { id: 'C2', name: '自己認識', category: 'CORE', tier: 1, labelA: '内省型', labelB: '対話型', intensityOnly: false },
+  { id: 'C3', name: '情緒安定性', category: 'CORE', tier: 1, labelA: '安定型', labelB: '回復型', intensityOnly: false },
+  { id: 'C4', name: '粘り強さ', category: 'CORE', tier: 1, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'C5', name: '失敗対処戦略', category: 'CORE', tier: 1, labelA: '切替型', labelB: '追究型', intensityOnly: false },
+  { id: 'C6', name: '几帳面性', category: 'CORE', tier: 1, labelA: '完成度優先', labelB: '期限優先', intensityOnly: false },
+  { id: 'C7', name: '対人協調', category: 'CORE', tier: 1, labelA: '共感型', labelB: '調整型', intensityOnly: false },
+  { id: 'C8', name: '曖昧さ耐性', category: 'CORE', tier: 1, labelA: '探索型', labelB: '直感型', intensityOnly: false },
+  { id: 'D1', name: '認知力', category: 'HEAD', tier: 1, labelA: '処理速度型', labelB: '処理深度型', intensityOnly: false },
+  { id: 'D2', name: '構想力', category: 'HEAD', tier: 1, labelA: 'ビジョン型', labelB: 'パターン型', intensityOnly: false },
+  { id: 'D3', name: '洞察力', category: 'HEAD', tier: 1, labelA: '直観型', labelB: '観察型', intensityOnly: false },
+  { id: 'E1', name: '近づきやすさ', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E2', name: '上司との関係構築', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E3', name: '上位経営層との関わり', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E4', name: '思いやり', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E5', name: '対立処理', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E6', name: '対人理解', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E7', name: '同僚・他部署との関係構築', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E8', name: '交渉', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E9', name: '組織内立ち回り', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E10', name: '組織政治への感度', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E11', name: '創造性', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E12', name: '意思決定の質', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E13', name: '即応的学習', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E14', name: '大局観', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E15', name: '問題解決', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'E16', name: '自己研鑽', category: 'HEAD', tier: 2, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M1', name: '部下・他者の育成', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M2', name: '部下への直言', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M3', name: '他者の動機づけ', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M4', name: '部下への関心', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M5', name: '部下への公平性', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M6', name: '効果的なチーム構築', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M7', name: 'ビジョンの浸透', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M8', name: '管理者としての勇気', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M9', name: '局面を引き取る統率力', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
+  { id: 'M10', name: '多様性のマネジメント', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
   { id: 'M11', name: 'イノベーションのマネジメント', category: 'MGMT', tier: 3, labelA: null, labelB: null, intensityOnly: true },
 ];
+/* @gen:end */
 
 /* ----------------------------------------------------------------------------
    有効回答の判定  [B-1 / B-2 の中核]
@@ -4638,7 +4646,7 @@ body {
   </div>
 
   <div id="sampleBanner" style="display:none; margin:0 0 16px; padding:11px 16px; background:#fff7ed; border:1px solid #fdba74; border-radius:8px; font-size:13px; color:#9a3412; line-height:1.6;">
-    集計結果が保存されていないため <strong>サンプルデータ</strong> を表示しています。問診ページ → 集計を実行し <code>prism_persona_results</code> が保存されると、実データに自動で切り替わります。
+    集計結果がまだ保存されていないため <strong>サンプルデータ</strong> を表示しています。問診ページで集計を実行すると、実データに自動で切り替わります。
   </div>
 
   <!-- Tier Tabs（採用判断 / 育成テーマ の2枠構成。両セクションは縦に並べて表示） -->
@@ -5665,7 +5673,7 @@ body {
   </div>
 
   <div id="sampleBanner" style="display:none; margin:0 0 22px; padding:11px 16px; background:#fff7ed; border:1px solid #fdba74; border-radius:8px; font-size:13px; color:#9a3412; line-height:1.6;">
-    集計結果が保存されていないため <strong>サンプルデータ</strong> を表示しています。問診ページ → 集計を実行し <code>prism_persona_results</code> が保存されると、実データに自動で切り替わります。
+    集計結果がまだ保存されていないため <strong>サンプルデータ</strong> を表示しています。問診ページで集計を実行すると、実データに自動で切り替わります。
   </div>
 
   <div id="sections"></div>
