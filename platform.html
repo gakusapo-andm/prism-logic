@@ -145,6 +145,19 @@ body {
   width: 100%; height: calc(100vh - 58px);
   border: 0; display: block; background: var(--surface);
 }
+.mod-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  height: 44px; padding: 0 16px;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.mod-toolbar button {
+  font: inherit; font-size: 13px; padding: 6px 12px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+}
+.mod-toolbar button:hover { background: var(--bg); }
+.mod-toolbar .spacer { flex: 1; }
+.page-with-toolbar .module-frame { height: calc(100vh - 103px); }
 
 .card {
   background: var(--surface); border: 1px solid var(--border);
@@ -428,12 +441,22 @@ body {
     </section>
 
     <!-- ============ ペルソナ結果（admin から到達）============ -->
-    <section class="page" id="page-results" hidden>
+    <section class="page page-with-toolbar" id="page-results" hidden>
+      <div class="mod-toolbar">
+        <button type="button" onclick="showPage('detail', true)">詳細セクションを開く ›</button>
+        <span class="spacer"></span>
+        <button type="button" onclick="showPage('persona')">‹ ペルソナ設計へ戻る</button>
+      </div>
       <iframe class="module-frame" data-mod="mod-results" title="ペルソナ結果"></iframe>
     </section>
 
     <!-- ============ 項目詳細（admin から到達）============ -->
-    <section class="page" id="page-detail" hidden>
+    <section class="page page-with-toolbar" id="page-detail" hidden>
+      <div class="mod-toolbar">
+        <button type="button" onclick="showPage('results', true)">‹ 結果ページへ戻る</button>
+        <span class="spacer"></span>
+        <button type="button" onclick="showPage('persona')">‹ ペルソナ設計へ戻る</button>
+      </div>
       <iframe class="module-frame" data-mod="mod-detail" title="項目詳細"></iframe>
     </section>
 
