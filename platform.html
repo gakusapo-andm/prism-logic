@@ -61,7 +61,7 @@ body {
 /* ─── ヘッダー ────────────────────────────── */
 .topbar {
   height: 58px; background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(16,24,40,.05), 0 4px 12px rgba(16,24,40,.06);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 22px; position: sticky; top: 0; z-index: 50;
 }
@@ -102,7 +102,7 @@ body {
 .layout { display: flex; min-height: calc(100vh - 58px); }
 .sidebar {
   width: 224px; flex-shrink: 0; background: var(--surface);
-  border-right: 1px solid var(--border); padding: 16px 0;
+  padding: 16px 0;
 }
 .co {
   padding: 4px 20px 6px; font-size: 11px; color: var(--text-dim);
