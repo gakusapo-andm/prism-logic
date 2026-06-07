@@ -153,11 +153,11 @@ body {
   border-bottom: 1px solid var(--border); background: var(--surface);
 }
 .mod-toolbar button {
-  font: inherit; font-size: 13px; padding: 6px 12px;
-  border: 1px solid var(--border); border-radius: 8px;
-  background: var(--surface); color: var(--text); cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px;
+  border: 1.5px solid var(--accent); border-radius: 8px;
+  background: var(--accent-soft); color: var(--accent); cursor: pointer;
 }
-.mod-toolbar button:hover { background: var(--bg); }
+.mod-toolbar button:hover { background: rgba(22,163,74,.18); }
 .mod-toolbar .spacer { flex: 1; }
 .page-with-toolbar .module-frame { height: calc(100vh - 103px); }
 
@@ -265,6 +265,28 @@ body {
 .home-stack { display: flex; flex-direction: column; gap: 16px; }
 #page-home .card { border-radius: 8px; }              /* シャープ寄せ（ホームのみ） */
 #page-home .card-h { margin-bottom: 20px; }           /* 見出し下に余白 */
+
+/* ─── 問診項目（アセスメント項目一覧）ページ ───── */
+.il-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.il-lead { font-size: 12.5px; color: var(--text-sub); line-height: 1.75; margin-bottom: 18px; }
+.il-axis { display: flex; align-items: baseline; gap: 8px; margin: 20px 0 6px; }
+.il-axis:first-of-type { margin-top: 2px; }
+.il-axis .ax { font-weight: 700; font-size: 13px; }
+.il-axis .axd { font-size: 11px; color: var(--text-sub); }
+.il-axis .axn { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+.ax-heart { color: #dc2626; } .ax-gut { color: #16a34a; }
+.ax-core { color: #2563eb; } .ax-head { color: #6b7280; } .ax-mgmt { color: #d97706; }
+.il-code { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.il-name { font-weight: 600; }
+.il-def { color: var(--text-sub); }
+#page-items .tbl td { vertical-align: top; }
+#page-items .tbl tbody tr { cursor: default; }
+#page-items .tbl tbody tr:hover { background: transparent; }
+#page-items .tbl th:first-child, #page-items .tbl td:first-child { width: 46px; }
+#page-items .tbl th:nth-child(2), #page-items .tbl td:nth-child(2) { width: 26%; white-space: nowrap; }
+@media (max-width: 560px) {
+  #page-items .tbl th:nth-child(2), #page-items .tbl td:nth-child(2) { white-space: normal; }
+}
 /* ① 受検状況を確認する｜新着の問診完了者（案B：白地＋中央カラー区切り） */
 .hm-merge { display: flex; flex-direction: column; min-height: 288px; }
 .hm-split { display: flex; align-items: stretch; flex: 1; }
@@ -384,6 +406,10 @@ body {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12,2 22,8 22,16 12,22 2,16 2,8"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="8" x2="22" y2="16"/><line x1="22" y1="8" x2="2" y2="16"/></svg>
         <span>ペルソナ初期設定</span>
       </button>
+      <button class="nav-item" data-page="items" onclick="showPage('items')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 3h6v3H9z"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>
+        <span>問診項目</span>
+      </button>
       <button class="nav-item" data-page="requests" onclick="showPage('requests')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="6" r="1.5"/><circle cx="4" cy="12" r="1.5"/><circle cx="4" cy="18" r="1.5"/><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/></svg>
         <span>受検者一覧</span>
@@ -438,8 +464,8 @@ body {
               </div>
               <div class="search-lab">受検者名で検索する</div>
               <div class="search-row">
-                <input id="sLast" placeholder="姓を入力">
-                <input id="sFirst" placeholder="名を入力">
+                <input id="sLast" placeholder="姓を入力" onkeydown="if(event.key==='Enter')homeSearch()">
+                <input id="sFirst" placeholder="名を入力" onkeydown="if(event.key==='Enter')homeSearch()">
                 <button onclick="homeSearch()" aria-label="検索">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></svg>
                 </button>
@@ -514,6 +540,13 @@ body {
     <!-- ============ 受検者一覧（本番 requests.html を埋め込み）============ -->
     <section class="page" id="page-requests" hidden>
       <iframe class="module-frame" id="requestsFrame" title="受検者一覧"></iframe>
+    </section>
+
+    <!-- ============ 問診項目（アセスメント項目一覧）============ -->
+    <section class="page" id="page-items" hidden>
+      <div class="il-title">問診項目</div>
+      <p class="il-lead">本システムで評価する全項目の一覧です。Tier 1 は採用選考で見極める中核19項目、Tier 2・3 は配属後に育成する Harder 層（育成可能）です。（　）内は二者択一のタイプ。</p>
+      <div class="stack" id="itemsBody"></div>
     </section>
 
     <!-- ============ ペルソナ結果（admin から到達）============ -->
@@ -644,6 +677,7 @@ function _showPage(name, force, ptab) {
   }
   if (name === 'persona') sendPersonaTab(personaTab);  /* 親→iframe タブ切替 */
   if (name === 'home') renderHome();   /* [v32-①] ホームを実データで描画 */
+  if (name === 'items') renderItems(); /* 問診項目（アセスメント項目一覧）*/
   updateNavActive(name);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -757,7 +791,7 @@ function paintCompleted(list, query){
   if (!elC) return;
   var rows;
   if (query) {
-    rows = list.filter(function(r){ return (r.respondent_name||'').indexOf(query) > -1; });
+    rows = list.filter(function(r){ return (r.respondent_name||'').replace(/\s+/g,'').indexOf(query) > -1; });
     if (!rows.length) { elC.innerHTML = homeRow3('「'+hEsc(query)+'」に一致する受検者はいません'); return; }
     rows = rows.slice(0,12);
     elC.innerHTML = rows.map(function(r){
@@ -782,6 +816,96 @@ function homeSearch(){
   var first = (document.getElementById('sFirst') || {}).value || '';
   var q = (last + first).replace(/\s+/g,'').trim();
   paintCompleted(homeRequests, q || null);
+}
+
+/* ── 問診項目（アセスメント項目一覧）。システム ITEMS_MASTER と同一の定義を表示する
+   静的な参照ページ。会社に依存しないため初回表示時に一度だけ描画する。 ── */
+var ITEM_LIST = {
+  tier1: [
+    { ax:'HEART', axd:'価値観・スタンス', cls:'ax-heart', rows:[
+      ['H1','仕事観','仕事を通じて「何を大事にするか」という、動機の核となる価値観。（貢献型／探究型）'],
+      ['H2','倫理・誠実性','損得を超えてルールや約束を守る、信用の前提となる誠実さ。（規範型／良心型）'],
+      ['H3','他者・組織','他者や組織との関わり方をどう捉えるかの志向性。（共生型／触発型）'],
+      ['H4','ユーモア','場やコミュニケーションにユーモアを利かせる構え。（親和型／着想型）'],
+      ['H5','自己開示','自分の経験や考えを率直に開示し、信頼を築く姿勢。（共有型／表明型）'],
+    ]},
+    { ax:'GUT', axd:'動機の源', cls:'ax-gut', rows:[
+      ['G1','自律動機','指示を待たず自ら動き出す内発的なエネルギー（主体性）。'],
+      ['G2','知的好奇心','自ら学びに行き、知ろうとする欲求。（広域型／深堀型）'],
+      ['G3','動機方向性','何に動機づけられるかの優先順位（成果／仲間／裁量／評価／安心）。'],
+    ]},
+    { ax:'CORE', axd:'気質・人格コア', cls:'ax-core', rows:[
+      ['C1','内省的学習','経験から学び取る内省的な姿勢。（体験型／概念型）'],
+      ['C2','自己認識','自分の強み・弱みを正しく把握していること。（内省型／対話型）'],
+      ['C3','情緒安定性','圧力・ストレス下でも崩れにくい気質のベース。（安定型／回復型）'],
+      ['C4','粘り強さ','短期で成果が出なくても続けられる忍耐の閾値。'],
+      ['C5','失敗対処戦略','失敗したあとの立て直し方。（切替型／追究型）'],
+      ['C6','几帳面性','約束・納期・細部を守ろうとする規律性。（完成度優先／期限優先）'],
+      ['C7','対人協調','場の空気に気づき、周囲と歩調を合わせる協調気質。（共感型／調整型）'],
+      ['C8','曖昧さ耐性','答えのない状況でも動き出せる気質。（探索型／直感型）'],
+    ]},
+    { ax:'HEAD', axd:'思考の核', cls:'ax-head', rows:[
+      ['D1','認知力','物事を素早く的確に理解する力。（処理速度型／処理深度型）'],
+      ['D2','構想力','先を見通して構想を描く力。（ビジョン型／パターン型）'],
+      ['D3','洞察力','本質や背景を見抜く力。（直観型／観察型）'],
+    ]},
+  ],
+  tier2: [
+    ['E1','近づきやすさ','相手が気軽に話しかけられる、近づきやすい雰囲気をまとう力。'],
+    ['E2','上司との関係構築','上司の指導や指摘を素直に受け取り、うまく協働する力。'],
+    ['E3','上位経営層との関わり','経営層や上位者の前でも萎縮せず、自然体で意見を伝える力。'],
+    ['E4','思いやり','他者の困難や苦境に気づき、共感的に対応する力。'],
+    ['E5','対立処理','対立や衝突を避けず、建設的に扱って合意形成まで持ち込む力。'],
+    ['E6','対人理解','場の空気や、相手の立場・動機を読み取る力。'],
+    ['E7','同僚・他部署との関係構築','他部署や同僚と協力関係を築き、組織横断で物事を進める力。'],
+    ['E8','交渉','利害が対立する場面で、双方が納得する合意に持ち込む交渉力。'],
+    ['E9','組織内立ち回り','組織の公式・非公式の構造を理解し、誰に相談すれば動くかを掴む力。'],
+    ['E10','組織政治への感度','組織内の力関係や利害を読み、要所を押さえて動く力。'],
+    ['E11','創造性','既存の枠にとらわれず、新しいアイデアを生み出す力。'],
+    ['E12','意思決定の質','分析と経験にもとづいて、質の高い判断を下す力。'],
+    ['E13','即応的学習','未経験の課題でも、走りながら素早く学んで対応する力。'],
+    ['E14','大局観','目の前の課題を、より大きな文脈や全体像の中に位置づけて捉える力。'],
+    ['E15','問題解決','問題の本質を見極め、論理的に分析して有効な解決策にたどり着く力。'],
+    ['E16','自己研鑽','自分の弱みに自覚的で、それを改善し続ける力。'],
+  ],
+  tier3: [
+    ['M1','部下・他者の育成','部下や周囲の人材の成長を支援し、引き上げる力。'],
+    ['M2','部下への直言','部下の問題や成果不足に対し、面と向かって率直に指摘する力。'],
+    ['M3','他者の動機づけ','一人ひとりの動機を理解し、やる気を引き出す力。'],
+    ['M4','部下への関心','部下を仕事だけでなく一人の人間として気にかける姿勢。'],
+    ['M5','部下への公平性','えこひいきせず、部下を公平に扱う力。'],
+    ['M6','効果的なチーム構築','多様なメンバーをまとめ、強いチームをつくる力。'],
+    ['M7','ビジョンの浸透','組織のビジョンや存在意義を語り、メンバーに浸透させる力。'],
+    ['M8','管理者としての勇気','言いにくい真実を伝え、不人気な判断も引き受ける勇気。'],
+    ['M9','局面を引き取る統率力','危機や困難な局面で前に出て指揮を執る統率力。'],
+    ['M10','多様性のマネジメント','多様な背景・属性のメンバーを公平に扱い、強みを活かす力。'],
+    ['M11','イノベーションのマネジメント','創造的なアイデアを評価・選別し、実用化につなげる仕組みをつくる力。'],
+  ],
+};
+var itemsRendered = false;
+function renderItems() {
+  if (itemsRendered) return;
+  var box = document.getElementById('itemsBody');
+  if (!box) return;
+  function tbl(rows) {
+    return '<table class="tbl"><thead><tr><th>コード</th><th>項目</th><th>定義</th></tr></thead><tbody>'
+      + rows.map(function(r) {
+          return '<tr><td class="il-code">' + hEsc(r[0]) + '</td>'
+               + '<td class="il-name">' + hEsc(r[1]) + '</td>'
+               + '<td class="il-def">' + hEsc(r[2]) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+  }
+  var h = '<div class="card"><div class="card-h">Tier 1 ─ Hardest層（中核・採用見極め）19項目</div>';
+  ITEM_LIST.tier1.forEach(function(g) {
+    h += '<div class="il-axis"><span class="ax ' + g.cls + '">' + hEsc(g.ax) + '</span>'
+       + '<span class="axd">' + hEsc(g.axd) + '</span>'
+       + '<span class="axn">' + g.rows.length + '項目</span></div>' + tbl(g.rows);
+  });
+  h += '</div>';
+  h += '<div class="card"><div class="card-h"><span class="ax ax-head">HEAD</span>&nbsp;Tier 2 ─ Harder層（育成可能）16項目</div>' + tbl(ITEM_LIST.tier2) + '</div>';
+  h += '<div class="card"><div class="card-h"><span class="ax ax-mgmt">MGMT</span>&nbsp;Tier 3 ─ Harder層（管理職特化型）11項目</div>' + tbl(ITEM_LIST.tier3) + '</div>';
+  box.innerHTML = h;
+  itemsRendered = true;
 }
 
 /* お知らせ（任意の announcements テーブル。無ければ黙って非表示）
