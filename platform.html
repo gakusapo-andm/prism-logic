@@ -154,8 +154,8 @@ body {
 }
 .mod-toolbar button {
   font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px;
-  border: 1.5px solid var(--accent); border-radius: 8px;
-  background: var(--accent-soft); color: var(--accent); cursor: pointer;
+  border: 0; border-radius: 8px;
+  background: var(--accent-soft); color: #15803d; cursor: pointer;
 }
 .mod-toolbar button:hover { background: rgba(22,163,74,.18); }
 .mod-toolbar .spacer { flex: 1; }
@@ -4660,7 +4660,7 @@ body {
     <div class="overview-header">
       <div>
         <div class="overview-title">合意率俯瞰ビュー</div>
-        <div class="overview-subtitle">採用判断 ─ 中核要件（Tier 1）19項目 / HEART → GUT → CORE → HEAD 順</div>
+        <div class="overview-subtitle" id="ovSub">採用判断 ─ 中核要件（Tier 1）19項目 / HEART → GUT → CORE → HEAD 順</div>
       </div>
       <div class="line-selectors">
         <div class="line-selector">
@@ -4688,37 +4688,7 @@ body {
         <span id="legDotB" style="display:inline-block; width:18px; height:3px; border-radius:1px;"></span>
         <span id="legLabelB">—</span>
       </div>
-      <div class="overview-legend-item">
-        <span style="display:inline-block; width:14px; height:8px; background:#10b981; border-radius:2px;"></span>
-        Hygiene帯（両線70%↑）
-      </div>
-      <div class="overview-legend-item">
-        <span style="display:inline-block; width:14px; height:8px; background:#f4a460; border-radius:2px;"></span>
-        差分 +25pt↑（A線が大きく重視）
-      </div>
-      <div class="overview-legend-item">
-        <span style="display:inline-block; width:14px; height:8px; background:#5b8fc9; border-radius:2px;"></span>
-        差分 −25pt↑（B線が大きく重視）
-      </div>
-      <div class="overview-legend-item">
-        <span style="display:inline-block; width:14px; height:8px; background:#b3b1a7; border-radius:2px;"></span>
-        差が小さい（±25pt未満）
-      </div>
-      <div class="overview-legend-item" style="border-left:1px solid var(--border-strong); padding-left:18px;">
-        <span style="font-family:Outfit; font-weight:700; color:#047857; font-size:11px;">HYG</span> Hygiene
-      </div>
-      <div class="overview-legend-item">
-        <span style="font-family:Outfit; font-weight:700; color:#be185d; font-size:11px;">FIT</span> Fit
-      </div>
-      <div class="overview-legend-item">
-        <span style="font-family:Outfit; font-weight:700; color:#b45309; font-size:11px;">SOFT</span> Soft Fit
-      </div>
-      <div class="overview-legend-item">
-        <span style="font-family:Outfit; font-weight:700; color:#16a34a; font-size:11px;">PROF</span> 動機プロファイル（記述専用）
-      </div>
-      <div class="overview-legend-item">
-        <span style="font-family:Outfit; font-weight:700; color:var(--text-dim); font-size:11px;">—</span> 未分類
-      </div>
+      <span id="clsLegend"></span>
     </div>
   </div>
 
@@ -4780,6 +4750,7 @@ function devItems()  { return (PERSONA.items || []).filter(it =>  it.isDevelopme
 /* 状態 */
 let PERSONA = null, IS_SAMPLE = false;
 let LINE_A = 'target', LINE_B = 'others';
+let TAB = 'core';   // 'core' = 採用判断（Tier 1） / 'dev' = 育成テーマ（Tier 2/3）
 
 function loadPersona() {
   try {
@@ -4813,17 +4784,28 @@ function catRuns(items) {
   return runs;
 }
 
-/* ---- SVGチャート生成（採用判断＝Tier 1 のみ） ---- */
-function buildChart() {
-  const items = coreItems();
+/* ---- SVGチャート生成（採用判断＝Tier 1 / 育成テーマ＝Tier 2/3 を共用） ----
+   opts.hygieneBand: Hygiene帯（70%↑の緑ウォッシュ。採用判断のみ）
+   opts.g3:          G3 順位項目ウォッシュ（採用判断のみ）
+   opts.devBands:    育成優先度の横帯（高70%↑/中50〜70%/低<50%。育成テーマのみ） */
+function buildChart(items, opts) {
+  items = items || coreItems();
+  opts = opts || { hygieneBand: true, g3: true };
   const runs = catRuns(items);
+  const COL_W = (PLOT.X1 - PLOT.X0) / Math.max(items.length, 1);   // core(19)=50 / dev(27)≈35.2
+  const cx = i => PLOT.X0 + COL_W / 2 + i * COL_W;
 
   // カテゴリ背景
   let bg = runs.map(r =>
-    `<rect x="${PLOT.X0 + r.start * PLOT.COL_W}" y="${PLOT.Y0}" width="${r.count * PLOT.COL_W}" height="${PLOT.Y1 - PLOT.Y0}" fill="${CAT_COLOR[r.cat]}" fill-opacity="0.06"/>`
+    `<rect x="${PLOT.X0 + r.start * COL_W}" y="${PLOT.Y0}" width="${r.count * COL_W}" height="${PLOT.Y1 - PLOT.Y0}" fill="${CAT_COLOR[r.cat]}" fill-opacity="0.06"/>`
   ).join('');
-  // Hygiene帯（70〜100%）
-  bg += `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${PLOT.X1 - PLOT.X0}" height="${yFor(70) - PLOT.Y0}" fill="#10b981" fill-opacity="0.07"/>`;
+  // Hygiene帯（70〜100%・採用判断のみ）
+  if (opts.hygieneBand) bg += `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${PLOT.X1 - PLOT.X0}" height="${yFor(70) - PLOT.Y0}" fill="#10b981" fill-opacity="0.07"/>`;
+  // 育成優先度の横帯（育成テーマのみ・高70↑/中50-70/低<50）
+  if (opts.devBands) {
+    bg += `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${PLOT.X1 - PLOT.X0}" height="${yFor(70) - PLOT.Y0}" fill="#10b981" fill-opacity="0.06"/>`
+       +  `<rect x="${PLOT.X0}" y="${yFor(70)}" width="${PLOT.X1 - PLOT.X0}" height="${yFor(50) - yFor(70)}" fill="#d97706" fill-opacity="0.05"/>`;
+  }
 
   // 横グリッド + Y軸ラベル
   let grid = '<g font-family="Outfit, sans-serif" font-size="10" fill="#999">';
@@ -4838,7 +4820,7 @@ function buildChart() {
   // 縦カラム線
   let cols = '<g stroke="#c8c8c8" stroke-width="1">';
   for (let k = 0; k <= items.length; k++) {
-    const x = PLOT.X0 + k * PLOT.COL_W;
+    const x = PLOT.X0 + k * COL_W;
     cols += `<line x1="${x}" y1="${PLOT.Y0}" x2="${x}" y2="${PLOT.Y1}"/>`;
   }
   cols += '</g>';
@@ -4848,33 +4830,35 @@ function buildChart() {
   runs.forEach(r => {
     const end = r.start + r.count;
     if (end < items.length) {
-      const x = PLOT.X0 + end * PLOT.COL_W;
+      const x = PLOT.X0 + end * COL_W;
       seps += `<line x1="${x}" y1="${PLOT.Y0}" x2="${x}" y2="${PLOT.Y1}"/>`;
     }
   });
   seps += '</g>';
 
-  // G3（順位項目）列のウォッシュ + ラベル
+  // G3（順位項目）列のウォッシュ + ラベル（採用判断のみ）
   let g3 = '';
-  const g3idx = items.findIndex(it => it.isRanking);
-  if (g3idx >= 0) {
-    const x = PLOT.X0 + g3idx * PLOT.COL_W, cx = x + 25;
-    g3 = `<rect x="${x}" y="${PLOT.Y0}" width="${PLOT.COL_W}" height="${PLOT.Y1 - PLOT.Y0}" fill="#16a34a" fill-opacity="0.10"/>`
-       + `<text x="${cx}" y="150" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" font-weight="700" fill="#16a34a" transform="rotate(-90 ${cx} 150)">PROFILE ・ 順位項目</text>`;
+  if (opts.g3) {
+    const g3idx = items.findIndex(it => it.isRanking);
+    if (g3idx >= 0) {
+      const x = PLOT.X0 + g3idx * COL_W, gx = x + COL_W / 2;
+      g3 = `<rect x="${x}" y="${PLOT.Y0}" width="${COL_W}" height="${PLOT.Y1 - PLOT.Y0}" fill="#16a34a" fill-opacity="0.10"/>`
+         + `<text x="${gx}" y="150" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" font-weight="700" fill="#16a34a" transform="rotate(-90 ${gx} 150)">PROFILE ・ 順位項目</text>`;
+    }
   }
 
-  // 折れ線（合意率 null の項目はスキップ。G3 も動機強度ヒアリングにより合意率を持つ）
+  // 折れ線（合意率 null の項目はスキップ）
   function lineSvg(which, color, w, r, whiteStroke) {
     const pts = [];
     items.forEach((it, idx) => {
       const v = it.consensus ? it.consensus[which] : null;
       if (v == null) return;
-      pts.push(colCenter(idx) + ',' + yFor(v).toFixed(1));
+      pts.push(cx(idx) + ',' + yFor(v).toFixed(1));
     });
     if (!pts.length) return '';
     const circles = pts.map(p => {
-      const [cx, cy] = p.split(',');
-      return `<circle cx="${cx}" cy="${cy}" r="${r}"${whiteStroke ? ' stroke="#fff" stroke-width="1.5"' : ''}/>`;
+      const [px, py] = p.split(',');
+      return `<circle cx="${px}" cy="${py}" r="${r}"${whiteStroke ? ' stroke="#fff" stroke-width="1.5"' : ''}/>`;
     }).join('');
     return `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>`
          + `<g fill="${color}">${circles}</g>`;
@@ -5079,11 +5063,49 @@ function renderLegend() {
   document.getElementById('legLabelB').textContent = lineLabel(LINE_B) + 'の合意率';
 }
 
+/* ---- 凡例（分類部）の HTML。タブで差し替える ---- */
+const CLS_LEGEND_CORE =
+  '<div class="overview-legend-item"><span style="display:inline-block; width:14px; height:8px; background:#10b981; border-radius:2px;"></span>Hygiene帯（両線70%↑）</div>'
+  + '<div class="overview-legend-item"><span style="display:inline-block; width:14px; height:8px; background:#f4a460; border-radius:2px;"></span>差分 +25pt↑（A線が大きく重視）</div>'
+  + '<div class="overview-legend-item"><span style="display:inline-block; width:14px; height:8px; background:#5b8fc9; border-radius:2px;"></span>差分 −25pt↑（B線が大きく重視）</div>'
+  + '<div class="overview-legend-item"><span style="display:inline-block; width:14px; height:8px; background:#b3b1a7; border-radius:2px;"></span>差が小さい（±25pt未満）</div>'
+  + '<div class="overview-legend-item" style="border-left:1px solid var(--border-strong); padding-left:18px;"><span style="font-family:Outfit; font-weight:700; color:#047857; font-size:11px;">HYG</span> Hygiene</div>'
+  + '<div class="overview-legend-item"><span style="font-family:Outfit; font-weight:700; color:#be185d; font-size:11px;">FIT</span> Fit</div>'
+  + '<div class="overview-legend-item"><span style="font-family:Outfit; font-weight:700; color:#b45309; font-size:11px;">SOFT</span> Soft Fit</div>'
+  + '<div class="overview-legend-item"><span style="font-family:Outfit; font-weight:700; color:#16a34a; font-size:11px;">PROF</span> 動機プロファイル（記述専用）</div>'
+  + '<div class="overview-legend-item"><span style="font-family:Outfit; font-weight:700; color:var(--text-dim); font-size:11px;">—</span> 未分類</div>';
+const CLS_LEGEND_DEV =
+  '<div class="overview-legend-item"><span style="display:inline-block; width:14px; height:8px; background:#10b981; border-radius:2px;"></span>育成優先度 高（対象70%↑）</div>'
+  + '<div class="overview-legend-item"><span style="display:inline-block; width:14px; height:8px; background:#d97706; border-radius:2px;"></span>育成優先度 中（50〜70%）</div>'
+  + '<div class="overview-legend-item"><span style="display:inline-block; width:14px; height:8px; background:#b3b1a7; border-radius:2px;"></span>育成優先度 低（50%未満）</div>'
+  + '<div class="overview-legend-item" style="border-left:1px solid var(--border-strong); padding-left:18px; color:var(--text-secondary);">採用合否はゲートしません（入社後の育成計画で扱う）</div>';
+
+/* ---- タブ（採用判断 / 育成テーマ）に応じたサブタイトル・凡例・タブ強調 ---- */
+function setOverviewMode() {
+  const isDev = TAB === 'dev';
+  const sub = document.getElementById('ovSub');
+  if (sub) sub.textContent = isDev
+    ? '育成テーマ ─ Tier 2/3（' + devItems().length + '項目）/ HEAD → MGMT 順 ・ 採用合否はゲートしません'
+    : '採用判断 ─ 中核要件（Tier 1）' + coreItems().length + '項目 / HEART → GUT → CORE → HEAD 順';
+  const cl = document.getElementById('clsLegend');
+  if (cl) cl.innerHTML = isDev ? CLS_LEGEND_DEV : CLS_LEGEND_CORE;
+  const tabs = document.querySelectorAll('.tier-tab');
+  if (tabs[0]) tabs[0].classList.toggle('active', !isDev);
+  if (tabs[1]) tabs[1].classList.toggle('active', isDev);
+}
+
 /* ---- メイン描画 ---- */
 function render() {
   renderHeader();
-  document.getElementById('vizInner').innerHTML = buildChart() + buildTable();
-  buildDevSection();
+  const viz = document.getElementById('vizInner');
+  if (TAB === 'dev') {
+    viz.innerHTML = buildChart(devItems(), { hygieneBand: false, g3: false, devBands: true });
+    buildDevSection();   // チャート下に育成優先度グループ一覧（詳細）
+  } else {
+    viz.innerHTML = buildChart(coreItems(), { hygieneBand: true, g3: true }) + buildTable();
+    document.getElementById('devSection').style.display = 'none';
+  }
+  setOverviewMode();
   renderLegend();
 }
 
@@ -5092,6 +5114,16 @@ function init() {
   PERSONA = r.persona; IS_SAMPLE = r.isSample;
   document.getElementById('sampleBanner').style.display = IS_SAMPLE ? 'block' : 'none';
   buildSelectors();
+  /* タブ切替（採用判断 / 育成テーマ）。育成項目が無ければ育成タブは無効化 */
+  const tabs = document.querySelectorAll('.tier-tab');
+  if (tabs[0]) tabs[0].onclick = function () { TAB = 'core'; render(); };
+  if (tabs[1]) {
+    if (devItems().length) {
+      tabs[1].onclick = function () { TAB = 'dev'; render(); };
+    } else {
+      tabs[1].disabled = true; tabs[1].style.opacity = '0.45'; tabs[1].style.cursor = 'default';
+    }
+  }
   render();
 }
 init();
