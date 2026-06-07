@@ -258,6 +258,49 @@ body {
 .news-date { color: var(--text-dim); width: 62px; flex-shrink: 0; font-family: 'Outfit', sans-serif; }
 .news-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ─── ホーム改修（統合カード・7:3・お知らせ） ───────────── */
+.home-stack { display: flex; flex-direction: column; gap: 16px; }
+#page-home .card { border-radius: 8px; }              /* シャープ寄せ（ホームのみ） */
+#page-home .card-h { margin-bottom: 20px; }           /* 見出し下に余白 */
+/* ① 受検状況を確認する｜新着の問診完了者（案B：白地＋中央カラー区切り） */
+.hm-merge { display: flex; flex-direction: column; min-height: 288px; }
+.hm-split { display: flex; align-items: stretch; flex: 1; }
+.hm-pane { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; padding: 2px 20px; }
+.hm-pane:first-child { padding-left: 2px; }
+.hm-pane:last-child { padding-right: 2px; }
+.hm-pane .link-r { margin-top: auto; }
+.hm-divider { flex: 0 0 4px; align-self: stretch; border-radius: 4px;
+  background: linear-gradient(180deg, var(--accent), var(--brand-blue)); margin: 2px 16px; }
+.hm-subh { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; margin: 0 0 18px; }
+.hm-subh svg { width: 15px; height: 15px; }
+.hm-subh-green { color: var(--accent); }
+.hm-subh-blue { color: var(--brand-blue); }
+/* ② 公開中(7)｜受検期限が近い(3) */
+.home-row73 { display: flex; gap: 16px; align-items: stretch; }
+.home-row73 .hm-col7 { flex: 7 1 0; min-width: 0; }
+.home-row73 .hm-col3 { flex: 3 1 0; min-width: 0; }
+.home-row73 .card { display: flex; flex-direction: column; min-height: 288px; }
+.home-row73 .count-r, .home-row73 .link-r { margin-top: auto; }
+.list .soon { color: var(--text-dim); white-space: nowrap; }
+/* ③ お知らせ（見出しは箱の外・内容は四角ボックス） */
+.nw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 0 4px 12px; }
+.nw-hl { display: flex; align-items: center; gap: 11px; }
+.nw-hl svg { width: 22px; height: 22px; color: var(--accent); }
+.nw-hl b { font-size: 17px; font-weight: 700; }
+.nw-sub { color: var(--accent); font-size: 13.5px; font-weight: 600; }
+.nw-more { color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.nw-box { background: var(--surface); border: 1px solid var(--border); border-radius: 0; overflow: hidden; }
+.nw-item { border-bottom: 1px solid var(--soft); }
+.nw-item:last-child { border-bottom: none; }
+.nw-row { display: flex; align-items: center; gap: 20px; padding: 15px 22px; }
+.nw-date { flex: 0 0 auto; min-width: 74px; color: var(--text-sub); font-size: 13px; font-family: 'Outfit', sans-serif; }
+.nw-ttl { flex: 1; min-width: 0; font-size: 13.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nw-detail { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; font-family: inherit; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; }
+.nw-detail svg { width: 13px; height: 13px; transition: transform .2s; }
+.nw-item.open .nw-detail svg { transform: rotate(180deg); }
+.nw-body { display: none; padding: 0 22px 16px; font-size: 13px; line-height: 1.7; color: var(--text-sub); white-space: pre-wrap; }
+.nw-item.open .nw-body { display: block; }
+
 /* ─── トースト ───────────────────────────── */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
@@ -269,6 +312,9 @@ body {
 
 @media (max-width: 860px) {
   .grid-2 { grid-template-columns: 1fr; }
+  .hm-split, .home-row73 { flex-direction: column; }
+  .hm-divider { display: none; }
+  .hm-merge, .home-row73 .card { min-height: 0; }
   .sidebar { width: 64px; }
   .co, .nav-section, .nav-item span { display: none; }
   .nav-item { justify-content: center; padding: 13px 0; }
@@ -345,54 +391,59 @@ body {
 
     <!-- ============ ホーム ============ -->
     <section class="page" id="page-home">
-      <div class="grid-2">
-        <div class="stack">
-          <section class="card">
-            <h2 class="card-h">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
-              受検状況を確認する
-            </h2>
-            <div class="tile-row">
-              <div class="tile" onclick="showPage('persona')">
-                <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/><circle cx="10" cy="7" r="4"/></svg></div>
-                <div class="tile-text"><b>社員受検者</b><br>を見る</div>
+      <div class="home-stack">
+
+        <!-- ① 受検状況を確認する｜新着の問診完了者（案B：白地＋中央カラー区切り）-->
+        <section class="card hm-merge">
+          <div class="hm-split">
+            <div class="hm-pane">
+              <div class="hm-subh hm-subh-green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/><circle cx="10" cy="7" r="4"/></svg>
+                受検状況を確認する
               </div>
-              <div class="tile muted" onclick="toast('新卒受検者は候補者アセスメント機能の提供後にご利用いただけます')">
-                <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3"/><path d="M2 6l10 4 10-4M5 13l-1 7M19 13l1 7"/></svg></div>
-                <div class="tile-text"><b>新卒受検者</b><br><span class="tile-badge">準備中</span></div>
+              <div class="tile-row">
+                <div class="tile" onclick="showPage('persona')">
+                  <div class="tile-icon"><svg viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><g> <path d="M320.707,0L37.037,69.971v417.625L320.447,512l154.516-26.258V62.568L320.707,0z M290.346,471.742 l-92.584-7.974v-79.426l-55.086-0.677v75.36l-68.109-5.866V99.367l215.779-53.224V471.742z"></path> <polygon points="271.25,76.933 226.537,86.32 226.537,138.956 271.25,131.246 "></polygon> <polygon points="118.574,112.033 87.416,118.622 87.416,164.818 118.574,159.469 "></polygon> <polygon points="190.012,95.942 150.426,104.23 150.426,153.027 190.012,146.202 "></polygon> <polygon points="118.576,203.184 87.416,207.448 87.416,253.722 118.576,250.622 "></polygon> <polygon points="190.012,192.792 150.426,198.154 150.426,246.952 190.012,243.052 "></polygon> <polygon points="271.25,181.04 226.537,187.097 226.537,238.911 271.25,234.506 "></polygon> <polygon points="271.25,286.135 226.537,288.889 226.537,340.702 271.25,339.6 "></polygon> <polygon points="190.012,291.476 150.426,293.914 150.426,342.712 190.012,341.737 "></polygon> <polygon points="118.574,296.198 87.416,298.136 87.416,344.409 118.574,343.634 "></polygon> </g></svg></div>
+                  <div class="tile-text"><b>社員受検者</b><br>を見る</div>
+                </div>
+                <div class="tile muted" onclick="toast('新卒受検者は候補者アセスメント機能の提供後にご利用いただけます')">
+                  <div class="tile-icon"><svg viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><g> <path d="M473.61,63.16L276.16,2.927C269.788,0.986,263.004,0,256.001,0c-7.005,0-13.789,0.986-20.161,2.927 L38.386,63.16c-3.457,1.064-5.689,3.509-5.689,6.25c0,2.74,2.232,5.186,5.691,6.25l91.401,27.88v77.228 c0.023,39.93,13.598,78.284,38.224,107.981c11.834,14.254,25.454,25.574,40.483,33.633c15.941,8.564,32.469,12.904,49.124,12.904 c16.646,0,33.176-4.34,49.126-12.904c22.597-12.143,42.04-31.646,56.226-56.39c14.699-25.683,22.471-55.155,22.478-85.224v-78.214 l45.244-13.804v64.192c-6.2,0.784-11.007,6.095-11.007,12.5c0,5.574,3.649,10.404,8.872,12.011l-9.596,63.315 c-0.235,1.576,0.223,3.168,1.262,4.386c1.042,1.204,2.554,1.902,4.148,1.902h36.273c1.592,0,3.104-0.699,4.148-1.91 c1.036-1.203,1.496-2.803,1.262-4.386l-9.596-63.307c5.223-1.607,8.872-6.436,8.872-12.011c0-6.405-4.81-11.716-11.011-12.5V81.544 l19.292-5.885c3.457-1.064,5.691-3.517,5.691-6.25C479.303,66.677,477.069,64.223,473.61,63.16z M257.62,297.871 c-10.413,0-20.994-2.842-31.448-8.455c-16.194-8.649-30.908-23.564-41.438-42.011c-4.854-8.478-8.796-17.702-11.729-27.445 c60.877-10.776,98.51-49.379,119.739-80.97c10.242,20.776,27.661,46.754,54.227,58.648c-3.121,24.984-13.228,48.812-28.532,67.212 c-8.616,10.404-18.773,18.898-29.375,24.573C278.606,295.029,268.025,297.871,257.62,297.871z"></path> <path d="M373.786,314.23l-1.004-0.629l-110.533,97.274L151.714,313.6l-1.004,0.629 c-36.853,23.036-76.02,85.652-76.02,156.326v0.955l0.846,0.45C76.291,472.365,152.428,512,262.249,512 c109.819,0,185.958-39.635,186.712-40.038l0.846-0.45v-0.955C449.808,399.881,410.639,337.265,373.786,314.23z"></path> </g></svg></div>
+                  <div class="tile-text"><b>新卒受検者</b><br><span class="tile-badge">準備中</span></div>
+                </div>
+                <div class="tile muted" onclick="toast('中途受検者は候補者アセスメント機能の提供後にご利用いただけます')">
+                  <div class="tile-icon"><svg viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><g> <path d="M453.039,429.75c-2-7.5-4.828-14.234-8.328-20.234c-6.125-10.516-14.25-18.703-23.203-25.203 c-6.703-4.875-13.891-8.828-21.172-12.25c-10.938-5.125-22.125-9.063-32.438-12.875c-10.328-3.797-19.781-7.531-27.094-11.859 c-2.688-1.578-5.109-3.234-7.203-4.953c-3.125-2.625-5.531-5.391-7.297-8.5s-2.953-6.594-3.406-10.969 c-0.328-3.109-0.469-6.063-0.469-8.844c0-8.25,1.219-15.422,2.766-22.734c4.625-5.219,8.844-11.422,12.844-18.859 s7.813-16.172,11.594-26.5c2.438-1.109,4.875-2.438,7.281-4.031c5.453-3.688,10.625-8.781,14.938-15.594 s7.781-15.281,10.141-25.734c0.656-2.891,0.969-5.781,0.969-8.609c0-5.938-1.391-11.594-3.75-16.641 c-1.625-3.484-3.703-6.703-6.125-9.625c1.234-4.547,2.734-10.688,4.063-17.859c1.844-9.969,3.375-21.922,3.375-34.531 c0-8.109-0.625-16.484-2.281-24.781c-1.25-6.203-3.047-12.359-5.625-18.266c-3.844-8.859-9.438-17.203-17.234-24.094 c-7.203-6.391-16.234-11.453-27.125-14.734c-4.609-5.516-9.375-10.188-14.297-14.109c-8.281-6.609-17-11.047-25.891-13.719 S270.18,0,261.195,0c-4.734,0-9.453,0.266-14.203,0.688c-4.438,0.406-8.125,0.859-11.422,1.422c-4.938,0.828-9,1.922-12.938,3.281 c-3.953,1.359-7.75,2.953-12.734,4.906c-1.891,0.75-4.359,1.844-7.359,3.359c-5.219,2.625-11.969,6.531-19.156,11.906 C172.57,33.609,160.633,45,151.352,60.406c-4.656,7.688-8.625,16.406-11.422,26.141c-2.813,9.766-4.438,20.516-4.438,32.281 c0,7.313,0.656,15.063,2,23.172c0,0.563,0.031,1.125,0.063,1.656c0.063,1,0.172,2.063,0.281,3.156 c0.172,1.609,0.359,3.281,0.5,4.688c0.078,0.688,0.141,1.313,0.188,1.813c0,0.234,0.016,0.438,0.031,0.594v0.156v0.047v0.016v0.922 l1.984,8.828c-2.844,3.109-5.313,6.609-7.234,10.438c-2.672,5.344-4.266,11.344-4.25,17.703c0,2.813,0.297,5.703,0.953,8.594 c1.578,6.984,3.641,13.078,6.125,18.359c3.719,7.969,8.406,14.156,13.625,18.813c4.031,3.609,8.344,6.25,12.625,8.203 c3.781,10.313,7.578,19.031,11.594,26.484c3.984,7.438,8.203,13.625,12.828,18.844c1.531,7.297,2.766,14.484,2.766,22.75 c0,2.797-0.125,5.734-0.453,8.844c-0.313,3-0.984,5.594-1.938,7.938c-1.422,3.484-3.484,6.453-6.313,9.281 c-2.813,2.781-6.422,5.375-10.672,7.797c-4.328,2.453-9.328,4.734-14.781,6.938c-9.547,3.859-20.406,7.516-31.438,11.891 c-8.281,3.313-16.641,7.063-24.625,11.781c-5.984,3.516-11.75,7.594-17.047,12.453c-7.922,7.234-14.781,16.297-19.5,27.531 c-4.75,11.203-7.391,24.469-7.375,40.156c0,2.203,0.469,4.328,1.234,6.266c0.719,1.813,1.688,3.516,2.844,5.078 c2.172,2.969,5,5.609,8.438,8.172c6.047,4.469,14.078,8.641,24.484,12.578c15.594,5.875,36.5,11.141,63.516,15 c27,3.828,60.125,6.234,100.063,6.234c34.594,0,64.109-1.813,88.938-4.797c18.641-2.219,34.641-5.125,48.234-8.438 c10.188-2.5,19.016-5.234,26.594-8.109c5.688-2.141,10.688-4.375,15.016-6.688c3.234-1.75,6.125-3.5,8.656-5.344 c3.813-2.75,6.859-5.594,9.188-8.813c1.141-1.609,2.125-3.328,2.828-5.172c0.688-1.859,1.109-3.891,1.109-5.969 C456.57,447.938,455.336,438.344,453.039,429.75z M238.539,437.297l-59.031-75.469c3.078-1.797,6-3.75,8.734-5.938 c2.938-2.359,5.641-4.969,8.016-7.938l42.922,19.922l-9.156,15.281l14.188,15.047L238.539,437.297z M202.336,337.875 c1.734-4.047,2.922-8.469,3.391-13.25c0.391-3.688,0.563-7.219,0.563-10.563c0-10.938-1.813-20.156-3.609-28.5l-0.516-2.266 l-1.594-1.688c-4.047-4.281-7.953-9.766-11.875-17.047c-3.906-7.297-7.813-16.375-11.828-27.688l-1.313-3.703l-3.688-1.359 c-2.563-0.938-5.047-2.141-7.438-3.75c-3.594-2.438-7.016-5.734-10.156-10.656c-3.125-4.922-5.938-11.531-7.969-20.469 c-0.375-1.703-0.547-3.344-0.547-4.922c0-3.578,0.875-6.969,2.5-10.234c1.344-2.688,3.219-5.25,5.5-7.531 c3.844,5.813,7,10.406,8.172,11.547c3.75,3.766,2.578,2.609,3.828,0.75c0,0,4.266-6,26.828-49.891 c45.141,10.031,124.016-57.766,124.016-57.766s0.953,21.891,16,41.953c14.266,19.031,22.406,63.703,22.406,63.703 s1.938-3.672,4.828-8.609c1.734,2.016,3.172,4.203,4.219,6.469c1.438,3.078,2.188,6.266,2.188,9.594 c0,1.594-0.172,3.234-0.547,4.922c-1.359,5.953-3.047,10.891-4.969,14.953c-2.859,6.125-6.156,10.328-9.609,13.422 c-3.469,3.094-7.141,5.109-10.969,6.516l-3.688,1.344l-1.313,3.703c-4.016,11.328-7.922,20.422-11.828,27.703 c-3.922,7.313-7.844,12.781-11.891,17.063l-1.594,1.688l-0.5,2.281c-1.813,8.313-3.625,17.547-3.625,28.469 c0,3.344,0.172,6.875,0.547,10.563c0.453,4.344,1.438,8.406,2.938,12.156c0.063,0.172,0.141,0.344,0.219,0.5L258.617,364 L202.336,337.875z M277.555,440.031l-6.078-41.828l14.203-15.047l-9.188-15.344l38.828-20.406c1.078,1.391,2.203,2.719,3.422,3.953 c3.859,3.953,8.297,7.219,13.063,10.063L277.555,440.031z"></path> </g></svg></div>
+                  <div class="tile-text"><b>中途受検者</b><br><span class="tile-badge">準備中</span></div>
+                </div>
               </div>
-              <div class="tile muted" onclick="toast('中途受検者は候補者アセスメント機能の提供後にご利用いただけます')">
-                <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3M3 13h18"/></svg></div>
-                <div class="tile-text"><b>中途受検者</b><br><span class="tile-badge">準備中</span></div>
+              <div class="search-lab">受検者名で検索する</div>
+              <div class="search-row">
+                <input id="sLast" placeholder="姓を入力">
+                <input id="sFirst" placeholder="名を入力">
+                <button onclick="homeSearch()" aria-label="検索">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></svg>
+                </button>
               </div>
             </div>
-            <div class="search-lab">受検者名で検索する</div>
-            <div class="search-row">
-              <input id="sLast" placeholder="姓を入力">
-              <input id="sFirst" placeholder="名を入力">
-              <button onclick="homeSearch()" aria-label="検索">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></svg>
-              </button>
+            <div class="hm-divider"></div>
+            <div class="hm-pane">
+              <div class="hm-subh hm-subh-blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                新着の問診完了者
+              </div>
+              <table class="tbl">
+                <thead><tr><th style="width:40%">受検者名</th><th style="width:32%">受検対象</th><th>完了日</th></tr></thead>
+                <tbody id="home-completed">
+                  <tr><td colspan="3" class="home-empty">読み込み中…</td></tr>
+                </tbody>
+              </table>
+              <div class="link-r"><a onclick="showPage('persona')">受検者一覧へ ›</a></div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section class="card">
-            <h2 class="card-h">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              新着の問診完了者
-            </h2>
-            <table class="tbl">
-              <thead><tr><th style="width:40%">受検者名</th><th style="width:32%">受検対象</th><th>完了日</th></tr></thead>
-              <tbody id="home-completed">
-                <tr><td colspan="3" class="home-empty">読み込み中…</td></tr>
-              </tbody>
-            </table>
-            <div class="link-r"><a onclick="showPage('persona')">受検者一覧へ ›</a></div>
-          </section>
-        </div>
-
-        <div class="stack">
-          <section class="card">
+        <!-- ② 公開中の受検依頼(7)｜受検期限が近い受検依頼(3)・別カラム・同高さ -->
+        <div class="home-row73">
+          <section class="card hm-col7">
             <h2 class="card-h">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
               公開中の受検依頼
@@ -406,7 +457,7 @@ body {
             <div class="count-r">全 <b id="home-active-count">—</b> 件</div>
           </section>
 
-          <section class="card">
+          <section class="card hm-col3">
             <h2 class="card-h">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
               受検期限が近い受検依頼
@@ -417,17 +468,21 @@ body {
             <div class="link-r"><a onclick="showPage('requests')">受検依頼一覧へ ›</a></div>
           </section>
         </div>
-      </div>
 
-      <section class="card" style="margin-top:16px" id="home-news-section" hidden>
-        <div class="news-head">
-          <h2 class="card-h" style="margin:0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16zM10 20a2 2 0 0 0 4 0"/></svg>
-            お知らせ<span class="pill">PRISM LOGIC をご利用いただきありがとうございます</span>
-          </h2>
-        </div>
-        <div id="home-news"></div>
-      </section>
+        <!-- ③ お知らせ（見出しは箱の外・内容ボックスは四角）-->
+        <section class="home-news" id="home-news-section" hidden>
+          <div class="nw-head">
+            <div class="nw-hl">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16zM10 20a2 2 0 0 0 4 0"/></svg>
+              <b>お知らせ</b>
+              <span class="nw-sub">PRISM LOGIC をご利用いただきありがとうございます</span>
+            </div>
+            <a class="nw-more" onclick="toast('過去のお知らせ一覧は準備中です')">過去のお知らせ一覧へ ›</a>
+          </div>
+          <div class="nw-box" id="home-news"></div>
+        </section>
+
+      </div>
     </section>
 
     <!-- ============ ペルソナ設計（admin コンソール）============ -->
@@ -630,9 +685,12 @@ async function renderHome(){
       elD.innerHTML = '<li class="home-empty">期限の近い受検依頼はありません</li>';
     } else {
       elD.innerHTML = withDue.slice(0,5).map(function(r){
+        var days = Math.ceil((new Date(r.expires_at) - Date.now()) / 86400000);
+        var label = days < 0 ? '期限切れ' : (days === 0 ? '本日まで' : 'あと' + days + '日');
+        var cls = days <= 3 ? 'due' : 'soon';
         return '<li><span class="title-link" onclick="showPage(\'requests\')">'
              + hEsc(r.respondent_name||'—') + '（' + hEsc(r.job_type||'—') + '）</span>'
-             + '<span class="due">〆 '+hDate(r.expires_at)+' まで</span></li>';
+             + '<span class="' + cls + '">' + label + '</span></li>';
       }).join('');
     }
   }
@@ -673,28 +731,49 @@ function homeSearch(){
   paintCompleted(homeRequests, q || null);
 }
 
-/* お知らせ（任意の announcements テーブル。無ければ黙って非表示）*/
+/* お知らせ（任意の announcements テーブル。無ければ黙って非表示）
+   見出しは箱の外、内容は四角ボックス内。body があれば「詳細を見る」で展開。 */
 async function renderNews(){
   var sec = document.getElementById('home-news-section');
   var box = document.getElementById('home-news');
   if (!sec || !box) return;
   try {
     var res = await sb.from('announcements')
-      .select('title, published_at')
+      .select('title, body, published_at')
       .eq('is_published', true)
       .order('published_at', { ascending: false })
       .limit(5);
-    if (res.error) throw res.error;
+    if (res.error) {
+      /* body 列が無い環境はフォールバック（title のみ・デプロイ順耐性） */
+      if (/body/.test(res.error.message || '') && /(column|schema cache)/i.test(res.error.message || '')) {
+        res = await sb.from('announcements').select('title, published_at')
+          .eq('is_published', true).order('published_at', { ascending: false }).limit(5);
+      }
+      if (res.error) throw res.error;
+    }
     var rows = res.data || [];
     if (!rows.length) { sec.hidden = true; return; }
     box.innerHTML = rows.map(function(a){
-      return '<div class="news-row"><span class="news-date">'+hDate(a.published_at, true)
-           + '</span><span class="news-title">'+hEsc(a.title)+'</span></div>';
+      var hasBody = a.body && String(a.body).trim();
+      var detail = hasBody
+        ? '<button class="nw-detail" onclick="toggleNews(this)">詳細を見る '
+          + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>'
+        : '';
+      var body = hasBody ? '<div class="nw-body">' + hEsc(a.body) + '</div>' : '';
+      return '<div class="nw-item"><div class="nw-row">'
+           + '<span class="nw-date">' + hDate(a.published_at, true) + '</span>'
+           + '<span class="nw-ttl">' + hEsc(a.title) + '</span>' + detail
+           + '</div>' + body + '</div>';
     }).join('');
     sec.hidden = false;
   } catch (e) {
     sec.hidden = true;   /* announcements 未作成でも安全に非表示 */
   }
+}
+/* お知らせ本文の開閉 */
+function toggleNews(btn){
+  var item = btn.closest('.nw-item');
+  if (item) item.classList.toggle('open');
 }
 
 /* admin（iframe 内）からの「結果ページで開く」依頼を受けてページ切替。
@@ -1425,6 +1504,11 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
   background: var(--bg-soft); border: 1px solid var(--border); color: var(--text-secondary);
 }
 .iscope-gdesc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.iscope-toggle { cursor: pointer; user-select: none; }
+.iscope-toggle:hover { background: var(--bg-soft); }
+.iscope-head-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.iscope-chev { width: 16px; height: 16px; color: var(--text-secondary); transition: transform .2s; }
+.iscope-chev.open { transform: rotate(180deg); }
 .iscope-bulk { display: flex; gap: 5px; flex-shrink: 0; }
 .iscope-bulk button {
   font-size: 10.5px; padding: 3px 8px; border-radius: 6px;
@@ -2574,6 +2658,7 @@ if (typeof module !== 'undefined' && module.exports) {
     responses: [],
     personas: [],
     cfgStatus: null,        // {type, msg}
+    tierOpen: { 2: false, 3: false },  // Tier 2/3 のトグル開閉（既定は格納）
     respStatus: null,
     aggStatus: null,
     lastResult: null,       // 直近の集計結果 personaResult
@@ -2702,31 +2787,15 @@ if (typeof module !== 'undefined' && module.exports) {
         </div>`;
     };
 
-    const cgHtml = c.customGroups.length
-      ? c.customGroups.map((g, gi) => renderCustomGroup(g, gi)).join('')
-      : `<div class="cg-empty" style="padding:6px 0 12px;">カスタムグループは未作成です。任意のメンバー集合（例: 営業ハイパフォーマー候補）を作れます。</div>`;
-
     view.innerHTML = `
       <div class="card">
         <div class="card-head">
           <div class="card-title">初期設定（企業設定）</div>
-          <div class="card-desc">職種・役職・カスタムグループを定義します。<code>prism_company_config</code> に保存。</div>
+          <div class="card-desc">職種・役職と出題項目を定義します。</div>
         </div>
         <div class="callout">
           ここで定義した<strong>職種・役職</strong>は、問診ページのプルダウンと、集計時の
           <strong>Hygiene 横断判定</strong>（全職種・全役職で合意率70%以上か）に使われます。
-        </div>
-
-        <div class="section-label">企業情報</div>
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label">企業名</label>
-            <input type="text" id="cfg-name" value="${esc(c.companyName)}" placeholder="会社名">
-          </div>
-          <div class="field">
-            <label class="field-label">企業ID</label>
-            <input type="text" id="cfg-id" value="${esc(c.companyId)}" placeholder="comp_001">
-          </div>
         </div>
 
         <div class="section-label">職種（jobTypes）</div>
@@ -2742,13 +2811,6 @@ if (typeof module !== 'undefined' && module.exports) {
           選択内容は全回答者で共通です。
         </div>
         ${renderTierScope(c)}
-
-        <div class="section-label">カスタムグループ（任意）</div>
-        <div class="field-hint" style="margin:-4px 0 10px;">
-          職種・役職とは別に、指名したメンバーの集合を作れます。集計の対象／比較グループに指定可能です。
-        </div>
-        ${cgHtml}
-        <button class="btn btn-sm" data-act="add-cg" ${S.responses.length ? '' : ''}>+ グループを追加</button>
 
         <div class="btn-row">
           <button class="btn btn-primary" data-act="save-cfg">設定を保存</button>
@@ -2789,6 +2851,7 @@ if (typeof module !== 'undefined' && module.exports) {
     const tierGroup = (n, label, desc) => {
       const items = TIER1_ITEMS.filter(it => (it.tier || 1) === n);
       const selCount = items.filter(it => enabled.indexOf(it.id) !== -1).length;
+      const open = !!(S.tierOpen && S.tierOpen[n]);
       const rows = items.map(it => {
         const on = enabled.indexOf(it.id) !== -1;
         return `
@@ -2800,18 +2863,23 @@ if (typeof module !== 'undefined' && module.exports) {
       }).join('');
       return `
         <div class="iscope-group">
-          <div class="iscope-ghead">
+          <div class="iscope-ghead iscope-toggle" data-act="tier-toggle" data-arg="${n}"
+               role="button" aria-expanded="${open ? 'true' : 'false'}">
             <div>
               <div class="iscope-glabel">${label}
                 <span class="iscope-gcount">${selCount} / ${items.length} 選択</span></div>
               <div class="iscope-gdesc">${desc}</div>
             </div>
-            <div class="iscope-bulk">
-              <button type="button" data-act="tier-all" data-arg="${n}">全選択</button>
-              <button type="button" data-act="tier-none" data-arg="${n}">全解除</button>
+            <div class="iscope-head-right">
+              <div class="iscope-bulk">
+                <button type="button" data-act="tier-all" data-arg="${n}">全選択</button>
+                <button type="button" data-act="tier-none" data-arg="${n}">全解除</button>
+              </div>
+              <svg class="iscope-chev ${open ? 'open' : ''}" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
             </div>
           </div>
-          <div class="iscope-items">${rows}</div>
+          ${open ? `<div class="iscope-items">${rows}</div>` : ''}
         </div>`;
     };
     const total = 19 + enabled.length;
@@ -2821,9 +2889,9 @@ if (typeof module !== 'undefined' && module.exports) {
           <strong>Tier 1 ─ 中核19項目</strong>は全回答者に必須で出題されます（選択不可）。
         </div>
         ${tierGroup(2, 'Tier 2 ─ Harder層（育成可能）',
-          '必要な項目だけにチェックを入れて全員の問診に追加します。')}
+          '見出しをタップで開閉。必要な項目だけにチェックを入れて全員の問診に追加します。')}
         ${tierGroup(3, 'Tier 3 ─ 管理職向け',
-          '必要な項目だけにチェックを入れて全員の問診に追加します。')}
+          '見出しをタップで開閉。必要な項目だけにチェックを入れて全員の問診に追加します。')}
         <div class="iscope-note">
           現在の問診ボリューム：<strong>中核19問 ＋ 選択 ${enabled.length}問 ＝ 全 ${total}問</strong>
         </div>
@@ -2842,6 +2910,21 @@ if (typeof module !== 'undefined' && module.exports) {
     });
   }
 
+  /* [変更] カスタムグループ編集の自動保存（companyConfig を localStorage へ書込→
+     親シェルの storage リスナが同期する。iframe からは親関数を呼ばない。） */
+  function persistCfg() {
+    try {
+      PrismStorage.saveCompanyConfig({
+        companyId: S.cfg.companyId,
+        companyName: S.cfg.companyName,
+        jobTypes: S.cfg.jobTypes,
+        ranks: S.cfg.ranks,
+        enabledItems: S.cfg.enabledItems,
+        customGroups: S.cfg.customGroups,
+      });
+    } catch (e) { /* プレビュー枠ではストレージ制限あり */ }
+  }
+
   function saveConfig() {
     captureConfigInputs();
     if (S.cfg.jobTypes.length === 0 || S.cfg.ranks.length === 0) {
@@ -2858,8 +2941,7 @@ if (typeof module !== 'undefined' && module.exports) {
         enabledItems: S.cfg.enabledItems,
         customGroups: S.cfg.customGroups,
       });
-      S.cfgStatus = { type: 'ok', msg: '✓ 設定を保存しました（prism_company_config）。'
-        + ' 問診ページ・集計に反映されます。' };
+      S.cfgStatus = { type: 'ok', msg: '✓ 設定を保存しました。問診ページ・集計に反映されます。' };
       updateCompanyTag();
     } catch (e) {
       S.cfgStatus = { type: 'err', msg: '⚠ 保存に失敗しました：' + esc(e.message)
@@ -3088,6 +3170,11 @@ if (typeof module !== 'undefined' && module.exports) {
     if (tv && !tv.disabled) S.agg.targetValue = tv.value;
     if (ct) S.agg.compareType = ct.value;
     if (cv && !cv.disabled) S.agg.compareValue = cv.value;
+    /* [変更] カスタムグループ名（集計タブに移設）を取り込む */
+    document.querySelectorAll('[data-cg-name]').forEach(el => {
+      const gi = +el.getAttribute('data-cg-name');
+      if (S.cfg.customGroups[gi]) S.cfg.customGroups[gi].name = el.value.trim() || '無題グループ';
+    });
   }
 
   function renderAggregate() {
@@ -3128,6 +3215,11 @@ if (typeof module !== 'undefined' && module.exports) {
         </div>`;
     }
 
+    // [変更] カスタムグループは集計実行タブで管理（任意・在メモリ＋自動保存）
+    const cgHtml = S.cfg.customGroups.length
+      ? S.cfg.customGroups.map((g, gi) => renderCustomGroup(g, gi)).join('')
+      : `<div class="cg-empty" style="padding:6px 0 12px;">カスタムグループは未作成です。任意のメンバー集合（例: 営業ハイパフォーマー候補）を作れます。</div>`;
+
     view.innerHTML = `
       <div class="card">
         <div class="card-head">
@@ -3147,6 +3239,13 @@ if (typeof module !== 'undefined' && module.exports) {
           <input type="text" id="agg-name" value="${esc(S.agg.personaName)}"
             placeholder="例: 営業職 採用ペルソナ" ${ready ? '' : 'disabled'}>
         </div>
+
+        <div class="section-label">カスタムグループ（任意）</div>
+        <div class="field-hint" style="margin:-4px 0 10px;">
+          職種・役職とは別に、指名したメンバーの集合を作れます。下の対象／比較グループで「カスタムグループ」として選択できます。編集は自動保存されます。
+        </div>
+        ${cgHtml}
+        <button class="btn btn-sm" data-act="add-cg">+ グループを追加</button>
 
         <div class="section-label">対象グループ（このグループが特に重視する条件を抽出）</div>
         <div class="field-row">
@@ -3533,13 +3632,22 @@ if (typeof module !== 'undefined' && module.exports) {
       case 'rm-rank':
         captureConfigInputs(); S.cfg.ranks.splice(+arg, 1); renderConfig(); break;
       case 'add-cg':
-        captureConfigInputs();
+        captureAggInputs();
         S.cfg.customGroups.push({ groupId: nextGroupId(), name: '新しいグループ', memberIds: [] });
-        renderConfig(); break;
+        persistCfg(); renderAggregate(); break;
       case 'rm-cg':
-        captureConfigInputs(); S.cfg.customGroups.splice(+arg, 1); renderConfig(); break;
+        captureAggInputs(); S.cfg.customGroups.splice(+arg, 1);
+        persistCfg(); renderAggregate(); break;
       case 'save-cfg':
         saveConfig(); break;
+
+      /* [変更] Tier 2/3 セクションの開閉トグル（開閉状態は S.tierOpen に保持） */
+      case 'tier-toggle': {
+        captureConfigInputs();
+        const n = +arg;
+        S.tierOpen[n] = !S.tierOpen[n];
+        renderConfig(); break;
+      }
 
       /* [D-5] Tier 2/3 項目の一括選択／解除 */
       case 'tier-all': {
@@ -3662,7 +3770,7 @@ if (typeof module !== 'undefined' && module.exports) {
       else if (!t.checked && i !== -1) arr.splice(i, 1);
       renderConfig();
     } else if (act === 'cg-mem') {
-      // カスタムグループのメンバー増減（再描画せずモデルとカウントだけ更新）
+      // カスタムグループのメンバー増減（再描画せずモデルとカウントだけ更新＋自動保存）
       const gi = +t.getAttribute('data-arg');
       const memId = t.getAttribute('data-id');
       const g = S.cfg.customGroups[gi];
@@ -3674,6 +3782,14 @@ if (typeof module !== 'undefined' && module.exports) {
       }
       const cnt = document.getElementById('cg-count-' + gi);
       if (cnt) cnt.textContent = g.memberIds.length + ' 名';
+      persistCfg();
+    } else if (t.getAttribute && t.getAttribute('data-cg-name') != null) {
+      // カスタムグループ名の編集（blur 時）→ モデル更新＋自動保存
+      const gi = +t.getAttribute('data-cg-name');
+      if (S.cfg.customGroups[gi]) {
+        S.cfg.customGroups[gi].name = t.value.trim() || '無題グループ';
+        persistCfg();
+      }
     }
   });
 
