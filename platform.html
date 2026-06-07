@@ -1552,7 +1552,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 }
 
 /* ─── 問診項目の選択 (item scope) ──────────── */
-.iscope { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.iscope { border: 1px solid var(--border); border-radius: 0; overflow: hidden; }
 .iscope-fixed {
   padding: 11px 14px; font-size: 12px; color: var(--text-secondary);
   background: var(--bg-soft); border-bottom: 1px solid var(--border);
@@ -1605,11 +1605,11 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .iscope-note strong { color: var(--accent); }
 
 /* ─── Custom groups ───────────────────────── */
-.cg { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+.cg { border: 1px solid var(--border); border-radius: 0; margin-bottom: 12px; }
 .cg-head {
   display: flex; gap: 10px; align-items: center;
   padding: 12px 14px; background: var(--bg-soft);
-  border-radius: 12px 12px 0 0; border-bottom: 1px solid var(--border);
+  border-radius: 0; border-bottom: 1px solid var(--border);
 }
 .cg-head input { flex: 1; }
 .cg-count {
@@ -2865,16 +2865,15 @@ if (typeof module !== 'undefined' && module.exports) {
           <strong>Hygiene 横断判定</strong>（全職種・全役職で合意率70%以上か）に使われます。
         </div>
 
-        <div class="section-label">職種（jobTypes）</div>
+        <div class="section-label">職種（ JobTypes ）</div>
         ${chipRow(c.jobTypes, 'job', '職種が未定義です。最低1つ追加してください。')}
 
-        <div class="section-label">役職（ranks）</div>
+        <div class="section-label">役職（ Ranks ）</div>
         ${chipRow(c.ranks, 'rank', '役職が未定義です。最低1つ追加してください。')}
 
         <div class="section-label">問診項目の選択</div>
         <div class="field-hint" style="margin:-4px 0 10px;">
-          Tier 1（中核19項目）は<strong>全回答者に必須</strong>です。Tier 2（Harder層・育成可能）と
-          Tier 3（管理職向け）は、人事部が<strong>項目単位で取捨選択</strong>して問診に追加できます。
+          ※Tier 2 と Tier 3 は、人事部が<strong>項目単位で取捨選択</strong>して問診に追加できます。
           選択内容は全回答者で共通です。
         </div>
         ${renderTierScope(c)}
@@ -2953,12 +2952,13 @@ if (typeof module !== 'undefined' && module.exports) {
     return `
       <div class="iscope">
         <div class="iscope-fixed">
-          <strong>Tier 1 ─ 中核19項目</strong>は全回答者に必須で出題されます（選択不可）。
+          <div class="iscope-glabel">Tier 1 ─ Hardest層（中核19項目）</div>
+          <div class="iscope-gdesc">最も変化が難しいとされるコンピテンシーのため全回答者に必須です。</div>
         </div>
         ${tierGroup(2, 'Tier 2 ─ Harder層（育成可能）',
-          '見出しをタップで開閉。必要な項目だけにチェックを入れて全員の問診に追加します。')}
-        ${tierGroup(3, 'Tier 3 ─ 管理職向け',
-          '見出しをタップで開閉。必要な項目だけにチェックを入れて全員の問診に追加します。')}
+          '時間はかかるが育成可能な能力です。見出しをタップで開閉し、必要な項目だけにチェックを入れて全員の問診に追加します。')}
+        ${tierGroup(3, 'Tier 3 ─ Harder層（管理職特化型）',
+          '時間はかかるが育成可能な能力です。特に管理者や幹部候補の見極めが必要な場合、必要に応じてチェックを入れて追加してください。')}
         <div class="iscope-note">
           現在の問診ボリューム：<strong>中核19問 ＋ 選択 ${enabled.length}問 ＝ 全 ${total}問</strong>
         </div>
@@ -3051,7 +3051,7 @@ if (typeof module !== 'undefined' && module.exports) {
     view.innerHTML = `
       <div class="card-head out">
         <div class="card-title">回答状況</div>
-        <div class="card-desc">問診で集まった生回答（<code>prism_raw_responses</code>）の確認。</div>
+        <div class="card-desc">問診で集まった回答の確認</div>
       </div>
       <div class="card">
 
@@ -3074,7 +3074,7 @@ if (typeof module !== 'undefined' && module.exports) {
         </div>
         ${smallGroups.length ? `<div class="status warn">
           ⚠ ${MIN}名未満のグループ（${smallGroups.map(s => esc(s.value)).join('・')}）は、集計時に
-          <strong>Hygiene 横断判定から自動除外</strong>されます（少人数が全社判定を覆さないための仕様）。
+          <strong>Hygiene 横断判定から自動除外</strong>されます。<br>（少人数が全社判定を覆さないための仕様）
         </div>` : ''}
 
         <div class="section-label">回答者一覧</div>
@@ -3290,16 +3290,13 @@ if (typeof module !== 'undefined' && module.exports) {
     view.innerHTML = `
       <div class="card-head out">
         <div class="card-title">集計実行</div>
-        <div class="card-desc">対象／比較グループを選び <code>aggregatePersona()</code> を実行、結果を保存します。</div>
+        <div class="card-desc">対象／比較グループを選択・集計詳細を決定します</div>
       </div>
       <div class="card">
         ${!ready ? `<div class="status warn">
           ⚠ 集計には<strong>企業設定</strong>と<strong>1件以上の回答</strong>が必要です。
           「初期設定」で職種・役職を定義し、「回答状況」で回答を用意してください。
-        </div>` : `<div class="callout">
-          集計は1回実行して <strong>personaResult</strong> を生成・保存します（案Y）。
-          結果ページ群はこの保存データを読むだけです。
-        </div>`}
+        </div>` : ''}
 
         <div class="section-label">ペルソナ名</div>
         <div class="field">
@@ -3309,7 +3306,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
         <div class="section-label">カスタムグループ（任意）</div>
         <div class="field-hint" style="margin:-4px 0 10px;">
-          職種・役職とは別に、指名したメンバーの集合を作れます。下の対象／比較グループで「カスタムグループ」として選択できます。編集は自動保存されます。
+          職種・役職とは別に、指名したメンバーの集合を作れます。下の対象／比較グループで「カスタムグループ」として選択できます。<br>編集は自動保存されます。
         </div>
         ${cgHtml}
         <button class="btn btn-sm" data-act="add-cg">+ グループを追加</button>
