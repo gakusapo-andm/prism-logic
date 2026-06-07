@@ -36,10 +36,14 @@ header{
   border:1px solid var(--border-strong); border-radius:8px; color:var(--text2); cursor:pointer;
 }
 .card{
-  background:var(--white); border:1px solid var(--border);
-  border-radius:12px; padding:20px 22px; margin-bottom:20px;
+  background:var(--white); border:none;
+  border-radius:8px; padding:20px 22px; margin-bottom:20px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.06);
 }
 .card h2{ font-size:14px; font-weight:700; margin-bottom:16px; }
+.sec-title{ color:var(--accent); font-size:14px; font-weight:700; margin:20px 2px 10px; }
+.sec-title:first-child{ margin-top:4px; }
+.sec-title + .card{ margin-top:0; }
 .bar{ display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
 .bar label{ font-size:12px; font-weight:600; color:var(--text2); }
 select,input[type=text],input[type=date]{
@@ -134,8 +138,8 @@ tr:last-child td{ border-bottom:0; }
       <select id="companySel"></select>
     </div>
 
+    <h2 class="sec-title">受検依頼を新規発行</h2>
     <section class="card">
-      <h2>受検依頼を新規発行</h2>
       <div id="formMsg"></div>
       <div class="form-grid">
         <div class="f f-full"><label>氏名（必須）</label>
@@ -155,8 +159,8 @@ tr:last-child td{ border-bottom:0; }
       <div id="issuedArea"></div>
     </section>
 
+    <h2 class="sec-title">CSVから一括発行</h2>
     <section class="card">
-      <h2>CSVから一括発行</h2>
       <div id="csvMsg"></div>
       <p class="muted" style="margin:0 0 12px;">
         固定テンプレートに名簿を入力して取り込むと、まとめて受検依頼を発行できます。
@@ -169,8 +173,8 @@ tr:last-child td{ border-bottom:0; }
       <div id="csvArea"></div>
     </section>
 
+    <h2 class="sec-title">受検依頼一覧</h2>
     <section class="card">
-      <h2>受検依頼一覧</h2>
       <div id="listArea"></div>
     </section>
   </main>
