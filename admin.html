@@ -59,6 +59,15 @@ header{
   background:var(--white); color:var(--text);
 }
 .addrow input:focus{ outline:none; border-color:var(--accent); }
+.ann-form{ display:flex; flex-direction:column; gap:10px; }
+.ann-form input, .ann-form textarea{
+  width:100%; font-family:inherit; font-size:13.5px; padding:9px 11px;
+  border:1px solid var(--border-strong); border-radius:8px;
+  background:var(--white); color:var(--text);
+}
+.ann-form textarea{ resize:vertical; min-height:62px; line-height:1.65; }
+.ann-form input:focus, .ann-form textarea:focus{ outline:none; border-color:var(--accent); }
+.ann-form .row{ display:flex; gap:10px; flex-wrap:wrap; }
 .btn{
   font-family:inherit; font-size:13px; font-weight:700; padding:10px 18px; color:#fff;
   background:var(--btn); border:0; border-radius:8px; cursor:pointer;
@@ -156,9 +165,13 @@ tr:last-child td{ border-bottom:0; }
       <h2>お知らせ管理</h2>
       <p class="muted">ここで投稿したお知らせは、全クライアントのホーム画面に表示されます（公開中・新しい順・最大5件）。</p>
       <div id="annMsg"></div>
-      <div class="addrow">
+      <div class="ann-form">
         <input type="text" id="annTitle" placeholder="お知らせのタイトル（例：年末年始の休業について）">
-        <button class="btn" id="annAddBtn">投稿</button>
+        <textarea id="annBody" rows="3" placeholder="本文（任意）。改行できます。クライアントのホームでは「詳細を見る」を押すと表示されます。"></textarea>
+        <div class="row">
+          <button class="btn" id="annAddBtn">投稿</button>
+          <button class="btn-ghost" id="annCancelBtn" hidden>キャンセル</button>
+        </div>
       </div>
       <div id="annList" style="margin-top:14px;"></div>
     </section>
@@ -251,6 +264,7 @@ async function init(){
   $('accClose').onclick = closeAccounts;
   $('accAddBtn').onclick = addAccount;
   $('annAddBtn').onclick = addAnnouncement;
+  $('annCancelBtn').onclick = annResetForm;
   $('annTitle').addEventListener('keydown', e => { if (e.key === 'Enter') addAnnouncement(); });
 
   await loadCompanies();
@@ -401,6 +415,7 @@ async function deleteCompany(id){
 
 /* ── お知らせ管理（announcements。スタッフRLSで直接読み書き）──────────── */
 let announcements = [];
+let annEditingId = null;   /* 編集中のお知らせ id（null=新規投稿モード） */
 async function loadAnnouncements(){
   const area = $('annList');
   const { data, error } = await sb.from('announcements')
@@ -430,7 +445,9 @@ function renderAnnouncements(){
     const pub = (a.is_published !== false);
     h += '<tr>'
       + '<td class="muted">' + fmtDate(a.published_at) + '</td>'
-      + '<td>' + esc(a.title) + '</td>'
+      + '<td>' + esc(a.title)
+      +   (a.body && String(a.body).trim() ? ' <span class="muted2">（本文あり）</span>' : '')
+      + '</td>'
       + '<td><span class="badge ' + (pub ? 'badge-green' : 'badge-gray') + '">'
       +   (pub ? '公開中' : '非公開') + '</span></td>'
       + '<td><div class="actions">'
@@ -448,16 +465,54 @@ function renderAnnouncements(){
   area.querySelectorAll('[data-ann-del]').forEach(b => b.onclick = () => deleteAnnouncement(b.dataset.annDel));
 }
 
+/* お知らせの本文（body）対応。announcements に body 列が無い旧環境では
+   書き込みを title のみへフォールバックする（デプロイ順耐性・他HTMLと同方針）。 */
+async function annWrite(opFn, title, body){
+  let res = await opFn({ title: title, body: body || null });
+  let bodyDropped = false;
+  if (res.error && /body/.test(res.error.message || '')
+      && /(column|schema cache)/i.test(res.error.message || '')){
+    bodyDropped = !!body;
+    res = await opFn({ title: title });
+  }
+  res.bodyDropped = bodyDropped;
+  return res;
+}
+
+/* フォームを新規投稿モードへ戻す（編集解除）。要素は null-safe に扱う。 */
+function annResetForm(){
+  annEditingId = null;
+  const t = $('annTitle'); if (t) t.value = '';
+  const b = $('annBody');  if (b) b.value = '';
+  const btn = $('annAddBtn'); if (btn) btn.textContent = '投稿';
+  const c = $('annCancelBtn'); if (c) c.hidden = true;
+}
+
+/* 投稿（新規）と更新（編集中）を兼ねる。annEditingId が立っていれば update。 */
 async function addAnnouncement(){
   const msg = $('annMsg'); msg.textContent = ''; msg.className = '';
   const title = $('annTitle').value.trim();
   if (!title){ msg.textContent = 'お知らせのタイトルを入力してください。'; msg.className = 'msg err'; return; }
-  const btn = $('annAddBtn'); btn.disabled = true; btn.textContent = '投稿中…';
-  const { error } = await sb.from('announcements').insert({ title: title });
-  btn.disabled = false; btn.textContent = '投稿';
-  if (error){ msg.textContent = '投稿に失敗しました：' + error.message; msg.className = 'msg err'; return; }
-  msg.textContent = '✓ お知らせを投稿しました。クライアントのホームに表示されます。'; msg.className = 'msg ok';
-  $('annTitle').value = '';
+  const bodyEl = $('annBody');
+  const body = bodyEl ? bodyEl.value.trim() : '';     /* テストDOMには annBody が無い → null-safe */
+  const editing = !!annEditingId;
+  const editId = annEditingId;
+  const btn = $('annAddBtn'); btn.disabled = true; btn.textContent = editing ? '更新中…' : '投稿中…';
+  const res = editing
+    ? await annWrite(function(p){ return sb.from('announcements').update(p).eq('id', editId); }, title, body)
+    : await annWrite(function(p){ return sb.from('announcements').insert(p); }, title, body);
+  btn.disabled = false; btn.textContent = editing ? '更新' : '投稿';
+  if (res.error){
+    msg.textContent = (editing ? '更新' : '投稿') + 'に失敗しました：' + res.error.message;
+    msg.className = 'msg err'; return;
+  }
+  msg.textContent = editing
+    ? '✓ お知らせを更新しました。'
+    : '✓ お知らせを投稿しました。クライアントのホームに表示されます。';
+  if (res.bodyDropped) msg.textContent +=
+    '（本文列が未追加のため本文は未保存。prism-announcements.sql を実行すると本文が保存・表示されます）';
+  msg.className = 'msg ok';
+  annResetForm();
   await loadAnnouncements();
 }
 
@@ -470,16 +525,20 @@ async function toggleAnnouncement(id){
   await loadAnnouncements();
 }
 
-async function editAnnouncement(id){
+/* 編集はフォーム再利用：行の内容をフォームに読み込み、ボタンを「更新」に切替える。
+   本文は複数行になり得るため prompt ではなくテキストエリアで編集する。 */
+function editAnnouncement(id){
   const a = announcements.find(x => x.id === id);
   if (!a) return;
-  const t = prompt('お知らせのタイトルを編集してください。', a.title);
-  if (t === null) return;
-  const v = t.trim();
-  if (!v || v === a.title) return;
-  const { error } = await sb.from('announcements').update({ title: v }).eq('id', id);
-  if (error){ alert('編集に失敗しました：' + error.message); return; }
-  await loadAnnouncements();
+  annEditingId = id;
+  const t = $('annTitle'); if (t) t.value = a.title || '';
+  const b = $('annBody');  if (b) b.value = a.body || '';
+  const btn = $('annAddBtn'); if (btn) btn.textContent = '更新';
+  const c = $('annCancelBtn'); if (c) c.hidden = false;
+  const msg = $('annMsg');
+  msg.textContent = '編集中：「' + a.title + '」。内容を直して「更新」を押してください。';
+  msg.className = 'msg';
+  try { if (t){ t.focus(); t.scrollIntoView({ behavior:'smooth', block:'center' }); } } catch (e) {}
 }
 
 async function deleteAnnouncement(id){
