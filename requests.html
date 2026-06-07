@@ -156,6 +156,20 @@ tr:last-child td{ border-bottom:0; }
     </section>
 
     <section class="card">
+      <h2>CSVから一括発行</h2>
+      <div id="csvMsg"></div>
+      <p class="muted" style="margin:0 0 12px;">
+        固定テンプレートに名簿を入力して取り込むと、まとめて受検依頼を発行できます。
+        職種・役職は「初期設定」で定義済みの値のみ使えます（未定義の値が1つでもあると取り込みを中止します）。</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="act-btn" id="tmplBtn">テンプレートをダウンロード</button>
+        <button class="act-btn primary" id="csvPickBtn">CSVファイルを選択</button>
+        <input type="file" id="csvFile" accept=".csv,text/csv" hidden>
+      </div>
+      <div id="csvArea"></div>
+    </section>
+
+    <section class="card">
       <h2>受検依頼一覧</h2>
       <div id="listArea"></div>
     </section>
@@ -203,6 +217,9 @@ async function init(){
   $('userEmail').textContent = (session.user && session.user.email) || '';
   $('logoutBtn').onclick = logout;
   $('issueBtn').onclick = issue;
+  $('tmplBtn').onclick = downloadTemplate;
+  $('csvPickBtn').onclick = () => $('csvFile').click();
+  $('csvFile').onchange = (e) => { const f = e.target.files[0]; if (f) onCsvFile(f); e.target.value = ''; };
   $('companySel').onchange = () => { currentCompanyId = $('companySel').value; applyCompany(); };
   await loadCompanies();
   $('loading').hidden = true;
@@ -494,6 +511,216 @@ async function issue(){
     + '</div></div>';
   $('issuedCopy').onclick = () => copyText(url, $('issuedCopy'));
   $('fName').value = ''; $('fJob').value = ''; $('fRank').value = ''; $('fExpiry').value = ''; $('fEmail').value = '';
+  loadRequests();
+}
+
+/* ───────────────────────────────────────────────────────────────
+   CSV 一括発行（固定テンプレート・厳格検証）[v37]
+   ─────────────────────────────────────────────────────────────── */
+const CSV_HEADERS = ['氏名', '職種', '役職', '受検期限', 'メールアドレス'];
+
+/* テンプレート（Excel-JP 用に BOM 付き）をダウンロード */
+function downloadTemplate(){
+  const sample = [
+    ['山田 太郎', '営業', '主任', '2026/06/30', 'taro@example.com'],
+    ['佐藤 花子', '', '', '', ''],
+  ];
+  const lines = [CSV_HEADERS.map(csvCell).join(',')]
+    .concat(sample.map(r => r.map(csvCell).join(',')));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '受検依頼テンプレート.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) {} a.remove(); }, 100);
+}
+
+/* 文字コード判定：UTF-8 で読み、置換文字(U+FFFD)が出たら Shift-JIS で読み直す。
+   （顧客が Excel 保存した CSV は CP932 のことが多い） */
+function decodeCsv(buf){
+  const bytes = new Uint8Array(buf);
+  let text = '';
+  try { text = new TextDecoder('utf-8', { fatal: false }).decode(bytes); } catch (e) { text = ''; }
+  if (text.indexOf('\uFFFD') !== -1){
+    try { text = new TextDecoder('shift_jis').decode(bytes); } catch (e) { /* 非対応環境は UTF-8 のまま */ }
+  }
+  return text.replace(/^\uFEFF/, '');   // BOM 除去
+}
+
+/* クオート対応の簡易 CSV パーサ（RFC4180 風）。行 → セル配列の配列。 */
+function parseCsv(text){
+  const rows = []; let row = []; let cell = ''; let i = 0; let inQ = false;
+  const s = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  while (i < s.length){
+    const ch = s[i];
+    if (inQ){
+      if (ch === '"'){
+        if (s[i + 1] === '"'){ cell += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      }
+      cell += ch; i++; continue;
+    }
+    if (ch === '"'){ inQ = true; i++; continue; }
+    if (ch === ','){ row.push(cell); cell = ''; i++; continue; }
+    if (ch === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; i++; continue; }
+    cell += ch; i++;
+  }
+  row.push(cell); rows.push(row);
+  return rows;
+}
+
+/* 日付正規化：YYYY/MM/DD または YYYY-MM-DD → YYYY-MM-DD。不正なら null。 */
+function normDate(s){
+  const m = /^\s*(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s*$/.exec(s || '');
+  if (!m) return null;
+  const iso = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  const dt = new Date(iso + 'T00:00:00');
+  return isNaN(dt.getTime()) ? null : iso;
+}
+function looksEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s || ''); }
+
+/* 名簿検証（純関数）。rows=parseCsv 結果, jobs/ranks=企業設定の許可値。
+   戻り値: { records, hard[], warns[], unknownJobs[], unknownRanks[] } */
+function validateRoster(rows, jobs, ranks){
+  const hard = [], warns = [], records = [];
+  const unkJobs = {}, unkRanks = {}, jobSet = {}, rankSet = {};
+  (jobs || []).forEach(j => jobSet[j] = 1);
+  (ranks || []).forEach(r => rankSet[r] = 1);
+  if (!rows || !rows.length){ hard.push('CSV が空です。'); return { records, hard, warns, unknownJobs: [], unknownRanks: [] }; }
+
+  const head = (rows[0] || []).map(h => (h || '').trim());
+  const col = {};
+  CSV_HEADERS.forEach(h => { col[h] = head.indexOf(h); });
+  if (col['メールアドレス'] < 0) col['メールアドレス'] = head.indexOf('メール');
+  if (col['氏名'] < 0){
+    hard.push('ヘッダに「氏名」列がありません。配布テンプレートをご利用ください。');
+    return { records, hard, warns, unknownJobs: [], unknownRanks: [] };
+  }
+
+  for (let i = 1; i < rows.length; i++){
+    const r = rows[i] || [];
+    const get = (key) => col[key] >= 0 ? (r[col[key]] || '').trim() : '';
+    const name = get('氏名'), job = get('職種'), rank = get('役職'),
+          exp = get('受検期限'), email = get('メールアドレス');
+    if (!name && !job && !rank && !exp && !email) continue;     // 空行スキップ
+    const ln = i + 1;                                           // 表示用行番号（ヘッダ=1行目）
+    const before = hard.length;
+    if (!name) hard.push(ln + '行目: 氏名が空です。');
+    if (job && !jobSet[job]){ hard.push(ln + '行目: 職種「' + job + '」は設定にありません。'); unkJobs[job] = 1; }
+    if (rank && !rankSet[rank]){ hard.push(ln + '行目: 役職「' + rank + '」は設定にありません。'); unkRanks[rank] = 1; }
+    let isoExp = null;
+    if (exp){ isoExp = normDate(exp); if (!isoExp) warns.push(ln + '行目: 受検期限「' + exp + '」を解釈できないため期限なしにします。'); }
+    let useEmail = null;
+    if (email){ if (looksEmail(email)) useEmail = email; else warns.push(ln + '行目: メール「' + email + '」の形式が不正なためメールなしで取り込みます。'); }
+    if (hard.length > before) continue;                         // この行はエラー → records に積まない
+    records.push({
+      respondent_name: name,
+      job_type: job || null,
+      rank: rank || null,
+      expires_at: isoExp ? (isoExp + 'T23:59:59') : null,
+      email: useEmail,
+    });
+  }
+  if (!records.length && !hard.length) hard.push('取り込めるデータ行がありません。');
+  return { records, hard, warns, unknownJobs: Object.keys(unkJobs), unknownRanks: Object.keys(unkRanks) };
+}
+
+/* 受検依頼 payload 配列を作る（純関数） */
+function rosterToPayloads(records, companyId){
+  return (records || []).map(r => ({
+    company_id: companyId,
+    respondent_name: r.respondent_name,
+    job_type: r.job_type,
+    rank: r.rank,
+    expires_at: r.expires_at,
+    email: r.email,
+  }));
+}
+
+function onCsvFile(file){
+  const msg = $('csvMsg'); msg.textContent = ''; msg.className = '';
+  $('csvArea').innerHTML = '';
+  const fr = new FileReader();
+  fr.onload = () => {
+    let res;
+    try {
+      const rows = parseCsv(decodeCsv(fr.result));
+      const c = companies.find(x => x.id === currentCompanyId) || {};
+      res = validateRoster(rows, Array.isArray(c.job_types) ? c.job_types : [],
+                                 Array.isArray(c.ranks) ? c.ranks : []);
+    } catch (e){
+      msg.textContent = 'CSV の解析に失敗しました：' + (e.message || e); msg.className = 'msg err'; return;
+    }
+    renderCsvPreview(res);
+  };
+  fr.onerror = () => { msg.textContent = 'ファイルの読み込みに失敗しました。'; msg.className = 'msg err'; };
+  fr.readAsArrayBuffer(file);
+}
+
+function renderCsvPreview(res){
+  const msg = $('csvMsg'); const area = $('csvArea');
+  if (res.hard.length){
+    let h = '<div class="msg err"><strong>取り込みを中止しました（' + res.hard.length + ' 件のエラー）</strong>';
+    if (res.unknownJobs.length || res.unknownRanks.length){
+      h += '<br>未登録の値: '
+        + (res.unknownJobs.length ? '職種[' + res.unknownJobs.map(esc).join('・') + '] ' : '')
+        + (res.unknownRanks.length ? '役職[' + res.unknownRanks.map(esc).join('・') + ']' : '')
+        + '<br>→「初期設定」で上記を追加してから取り込み直してください。';
+    }
+    h += '<ul style="margin:8px 0 0;padding-left:20px;">'
+      + res.hard.slice(0, 30).map(e => '<li>' + esc(e) + '</li>').join('')
+      + (res.hard.length > 30 ? '<li>… ほか ' + (res.hard.length - 30) + ' 件</li>' : '')
+      + '</ul></div>';
+    area.innerHTML = h;
+    return;
+  }
+  let h = '';
+  if (res.warns.length){
+    h += '<div class="msg" style="background:#fff7ed;color:#9a3412;">注意（取り込みは可能）：'
+      + '<ul style="margin:6px 0 0;padding-left:20px;">'
+      + res.warns.slice(0, 20).map(w => '<li>' + esc(w) + '</li>').join('')
+      + (res.warns.length > 20 ? '<li>… ほか ' + (res.warns.length - 20) + ' 件</li>' : '')
+      + '</ul></div>';
+  }
+  h += '<div class="dist-bar"><span class="dist-count">取り込み対象 ' + res.records.length + ' 件</span>'
+    + '<button class="act-btn primary" id="csvIssueBtn">この ' + res.records.length + ' 件を一括発行</button>'
+    + '<button class="act-btn" id="csvCancelBtn">取り消し</button></div>';
+  h += '<div class="tablewrap"><table><thead><tr><th>氏名</th><th>職種</th><th>役職</th><th>受検期限</th><th>メール</th></tr></thead><tbody>';
+  res.records.slice(0, 100).forEach(r => {
+    h += '<tr><td>' + esc(r.respondent_name) + '</td><td>' + esc(r.job_type || '—')
+      + '</td><td>' + esc(r.rank || '—') + '</td><td class="muted">'
+      + (r.expires_at ? esc(r.expires_at.slice(0, 10)) : '—') + '</td><td class="muted">'
+      + esc(r.email || '—') + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  if (res.records.length > 100) h += '<div class="muted" style="margin-top:6px;">（プレビューは先頭100件。発行は全' + res.records.length + '件）</div>';
+  area.innerHTML = h;
+  $('csvIssueBtn').onclick = (e) => bulkIssue(res.records, e.target);
+  $('csvCancelBtn').onclick = () => { area.innerHTML = ''; msg.textContent = ''; msg.className = ''; };
+}
+
+async function bulkIssue(records, btn){
+  const msg = $('csvMsg');
+  if (!currentCompanyId){ msg.textContent = '対象企業が未選択です。'; msg.className = 'msg err'; return; }
+  if (!records || !records.length) return;
+  if (btn){ btn.disabled = true; btn.textContent = '発行中…'; }
+  const payloads = rosterToPayloads(records, currentCompanyId);
+  let res = await sb.from('survey_requests').insert(payloads).select();
+  let emailDropped = false;
+  if (res.error && /email/.test(res.error.message || '')
+      && /(column|schema cache)/i.test(res.error.message || '')){
+    emailDropped = payloads.some(p => p.email);
+    res = await sb.from('survey_requests')
+      .insert(payloads.map(p => { const { email, ...rest } = p; return rest; })).select();
+  }
+  if (res.error){
+    if (btn){ btn.disabled = false; btn.textContent = 'もう一度発行'; }
+    msg.textContent = '一括発行に失敗しました：' + res.error.message; msg.className = 'msg err'; return;
+  }
+  msg.textContent = '✓ ' + ((res.data && res.data.length) || records.length) + ' 件の受検依頼を発行しました。'
+    + (emailDropped ? '（メール列が未追加のため、メールアドレスは未保存。prism-survey-email.sql を実行すると有効化）' : '');
+  msg.className = 'msg ok';
+  $('csvArea').innerHTML = '';
   loadRequests();
 }
 
