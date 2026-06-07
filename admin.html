@@ -248,7 +248,6 @@ async function init(){
   $('userEmail').textContent = (session.user && session.user.email) || '';
   $('logoutBtn').onclick = logout;
   $('addBtn').onclick = addCompany;
-  $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') addCompany(); });
   $('accClose').onclick = closeAccounts;
   $('accAddBtn').onclick = addAccount;
   $('annAddBtn').onclick = addAnnouncement;
