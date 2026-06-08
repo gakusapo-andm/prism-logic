@@ -4343,10 +4343,11 @@ body {
 /* ─── Overview Container ─────────────────── */
 .overview {
   background: var(--bg-white);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 8px;
   margin-bottom: 24px;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.06);
 }
 .overview-header {
   padding: 20px 28px 16px;
@@ -4792,7 +4793,8 @@ function buildChart(items, opts) {
   items = items || coreItems();
   opts = opts || { hygieneBand: true, g3: true };
   const runs = catRuns(items);
-  const COL_W = (PLOT.X1 - PLOT.X0) / Math.max(items.length, 1);   // core(19)=50 / dev(27)≈35.2
+  const COL_W = PLOT.COL_W;                          // 列幅50px固定（データ表の列幅と一致＝整列）
+  const X1 = PLOT.X0 + items.length * COL_W;          // 右端＝項目数で可変（core 1080 / dev 1480）
   const cx = i => PLOT.X0 + COL_W / 2 + i * COL_W;
 
   // カテゴリ背景
@@ -4800,20 +4802,20 @@ function buildChart(items, opts) {
     `<rect x="${PLOT.X0 + r.start * COL_W}" y="${PLOT.Y0}" width="${r.count * COL_W}" height="${PLOT.Y1 - PLOT.Y0}" fill="${CAT_COLOR[r.cat]}" fill-opacity="0.06"/>`
   ).join('');
   // Hygiene帯（70〜100%・採用判断のみ）
-  if (opts.hygieneBand) bg += `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${PLOT.X1 - PLOT.X0}" height="${yFor(70) - PLOT.Y0}" fill="#10b981" fill-opacity="0.07"/>`;
+  if (opts.hygieneBand) bg += `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${X1 - PLOT.X0}" height="${yFor(70) - PLOT.Y0}" fill="#10b981" fill-opacity="0.07"/>`;
   // 育成優先度の横帯（育成テーマのみ・高70↑/中50-70/低<50）
   if (opts.devBands) {
-    bg += `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${PLOT.X1 - PLOT.X0}" height="${yFor(70) - PLOT.Y0}" fill="#10b981" fill-opacity="0.06"/>`
-       +  `<rect x="${PLOT.X0}" y="${yFor(70)}" width="${PLOT.X1 - PLOT.X0}" height="${yFor(50) - yFor(70)}" fill="#d97706" fill-opacity="0.05"/>`;
+    bg += `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${X1 - PLOT.X0}" height="${yFor(70) - PLOT.Y0}" fill="#10b981" fill-opacity="0.06"/>`
+       +  `<rect x="${PLOT.X0}" y="${yFor(70)}" width="${X1 - PLOT.X0}" height="${yFor(50) - yFor(70)}" fill="#d97706" fill-opacity="0.05"/>`;
   }
 
   // 横グリッド + Y軸ラベル
   let grid = '<g font-family="Outfit, sans-serif" font-size="10" fill="#999">';
   for (let p = 0; p <= 100; p += 10) {
     const y = yFor(p);
-    if (p === 70)      grid += `<line x1="${PLOT.X0}" y1="${y}" x2="${PLOT.X1}" y2="${y}" stroke="#10b981" stroke-width="1.5" stroke-dasharray="5,3"/><text x="120" y="${y + 4}" text-anchor="end" fill="#10b981" font-weight="700">70%</text>`;
-    else if (p === 50) grid += `<line x1="${PLOT.X0}" y1="${y}" x2="${PLOT.X1}" y2="${y}" stroke="#b45309" stroke-width="1.2" stroke-dasharray="3,3"/><text x="120" y="${y + 4}" text-anchor="end" fill="#b45309" font-weight="600">50%</text>`;
-    else               grid += `<line x1="${PLOT.X0}" y1="${y}" x2="${PLOT.X1}" y2="${y}" stroke="#c8c8c8" stroke-width="1"/><text x="120" y="${y + 4}" text-anchor="end">${p}%</text>`;
+    if (p === 70)      grid += `<line x1="${PLOT.X0}" y1="${y}" x2="${X1}" y2="${y}" stroke="#10b981" stroke-width="1.5" stroke-dasharray="5,3"/><text x="120" y="${y + 4}" text-anchor="end" fill="#10b981" font-weight="700">70%</text>`;
+    else if (p === 50) grid += `<line x1="${PLOT.X0}" y1="${y}" x2="${X1}" y2="${y}" stroke="#b45309" stroke-width="1.2" stroke-dasharray="3,3"/><text x="120" y="${y + 4}" text-anchor="end" fill="#b45309" font-weight="600">50%</text>`;
+    else               grid += `<line x1="${PLOT.X0}" y1="${y}" x2="${X1}" y2="${y}" stroke="#c8c8c8" stroke-width="1"/><text x="120" y="${y + 4}" text-anchor="end">${p}%</text>`;
   }
   grid += '</g>';
 
@@ -4866,9 +4868,9 @@ function buildChart(items, opts) {
   const lineB = lineSvg(LINE_B, LINE_COLOR[LINE_B], 2, 3.5, false);
   const lineA = lineSvg(LINE_A, LINE_COLOR[LINE_A], 2.5, 4.5, true);
 
-  const outline = `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${PLOT.X1 - PLOT.X0}" height="${PLOT.Y1 - PLOT.Y0}" fill="none" stroke="#1d1e22" stroke-width="1.2"/>`;
+  const outline = `<rect x="${PLOT.X0}" y="${PLOT.Y0}" width="${X1 - PLOT.X0}" height="${PLOT.Y1 - PLOT.Y0}" fill="none" stroke="#1d1e22" stroke-width="1.2"/>`;
 
-  return `<svg class="svg-chart" viewBox="0 0 1080 300" preserveAspectRatio="none">${bg}${grid}${cols}${seps}${g3}${lineB}${lineA}${outline}</svg>`;
+  return `<svg class="svg-chart" viewBox="0 0 ${X1} 300" preserveAspectRatio="none">${bg}${grid}${cols}${seps}${g3}${lineB}${lineA}${outline}</svg>`;
 }
 
 /* ---- 差分マーカーのセルクラス・表記（A線−B線で算出） ---- */
@@ -4883,9 +4885,11 @@ function diffText(d) {
   return (d > 0 ? '+' : '−') + Math.abs(d);
 }
 
-/* ---- データ表生成（採用判断＝Tier 1 のみ） ---- */
-function buildTable() {
-  const items = coreItems();
+/* ---- データ表生成（採用判断＝Tier 1 / 育成テーマ＝Tier 2/3 を共用。
+   opts.dev=true で採用判断専用行（Hygiene帯・差分マーカー）を省く） ---- */
+function buildTable(items, opts) {
+  items = items || coreItems();
+  opts = opts || {};
   const runs = catRuns(items);
   const bg = cat => 'bg-' + cat.toLowerCase();
 
@@ -4949,7 +4953,9 @@ function buildTable() {
 
   const spacer = '<tr class="spacer-row"><td colspan="' + (items.length + 1) + '"></td></tr>';
 
-  return `<table class="data-table">${colgroup}${catRow}${labelRow}${targetRow}${othersRow}${allRow}${spacer}${bandRow}${diffRow}${spacer}${classRow}</table>`;
+  // 育成テーマ（opts.dev）は採用判断専用の Hygiene帯・差分マーカー行を出さない
+  const markerRows = opts.dev ? '' : (spacer + bandRow + diffRow);
+  return `<table class="data-table">${colgroup}${catRow}${labelRow}${targetRow}${othersRow}${allRow}${markerRows}${spacer}${classRow}</table>`;
 }
 
 /* ---- 育成テーマ セクション生成（Tier 2/3 = dev_*。絶対値ベース・比較なし） ---- */
@@ -5097,14 +5103,17 @@ function setOverviewMode() {
 /* ---- メイン描画 ---- */
 function render() {
   renderHeader();
+  const items = (TAB === 'dev') ? devItems() : coreItems();
+  // チャート・データ表・viz の総幅をタブの項目数に合わせる（列50px固定 → core 1080 / dev 1480）
+  document.documentElement.style.setProperty('--total-w', (PLOT.X0 + items.length * PLOT.COL_W) + 'px');
   const viz = document.getElementById('vizInner');
   if (TAB === 'dev') {
-    viz.innerHTML = buildChart(devItems(), { hygieneBand: false, g3: false, devBands: true });
-    buildDevSection();   // チャート下に育成優先度グループ一覧（詳細）
+    viz.innerHTML = buildChart(items, { hygieneBand: false, g3: false, devBands: true }) + buildTable(items, { dev: true });
   } else {
-    viz.innerHTML = buildChart(coreItems(), { hygieneBand: true, g3: true }) + buildTable();
-    document.getElementById('devSection').style.display = 'none';
+    viz.innerHTML = buildChart(items, { hygieneBand: true, g3: true }) + buildTable(items);
   }
+  // 育成テーマも「チャート＋データ表（項目ラベルが列で揃う）」に一本化。旧・優先度グループ一覧は非表示。
+  document.getElementById('devSection').style.display = 'none';
   setOverviewMode();
   renderLegend();
 }
